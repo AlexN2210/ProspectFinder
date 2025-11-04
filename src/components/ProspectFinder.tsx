@@ -306,6 +306,39 @@ export default function ProspectFinder() {
     setSortBy('name');
   };
 
+  // Calcul des catégories disponibles dans les résultats
+  const availableCategories = useMemo(() => {
+    if (results.length === 0) return new Set<string>();
+    
+    const available = new Set<string>();
+    const normalizedResultCodes = results
+      .map(c => c.apeCode)
+      .filter(Boolean)
+      .map(code => code.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim());
+    
+    APE_CATEGORIES.forEach(category => {
+      const categoryCode = category.code.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+      const categoryPrefix = categoryCode.substring(0, 4);
+      
+      // Vérifier si un code de résultat correspond à cette catégorie
+      const matches = normalizedResultCodes.some(resultCode => {
+        // Correspondance exacte
+        if (resultCode === categoryCode) return true;
+        // Correspondance par préfixe (4 premiers caractères)
+        if (resultCode.length >= 4 && resultCode.substring(0, 4) === categoryPrefix) return true;
+        // Correspondance si le code résultat commence par le code catégorie
+        if (resultCode.startsWith(categoryCode)) return true;
+        return false;
+      });
+      
+      if (matches) {
+        available.add(category.code);
+      }
+    });
+    
+    return available;
+  }, [results]);
+
   // Calcul des résultats filtrés et triés
   const filteredAndSortedResults = useMemo(() => {
     let filtered = [...results];
@@ -317,6 +350,7 @@ export default function ProspectFinder() {
         const uniqueApeCodes = [...new Set(filtered.map(c => c.apeCode).filter(Boolean))];
         console.log('Codes APE disponibles dans les résultats:', uniqueApeCodes);
         console.log('Catégories sélectionnées:', selectedAPECategories);
+        console.log('Catégories disponibles dans les résultats:', Array.from(availableCategories));
       }
       
       filtered = filtered.filter(company => {
@@ -396,7 +430,7 @@ export default function ProspectFinder() {
     });
 
     return sorted;
-  }, [results, selectedAPECategories, sortBy]);
+  }, [results, selectedAPECategories, sortBy, availableCategories]);
 
   const exportToCSV = () => {
     const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Site Web', 'Code APE', 'Catégorie'];
@@ -769,16 +803,22 @@ export default function ProspectFinder() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 border border-slate-700 rounded-lg bg-slate-900/30">
                           {APE_CATEGORIES.map((category) => {
                             const isChecked = selectedAPECategories.includes(category.code);
+                            const isAvailable = availableCategories.has(category.code);
                             return (
                               <div 
                                 key={category.code} 
-                                className={`flex items-center space-x-2 p-2 rounded hover:bg-slate-700/50 transition-colors ${
-                                  isChecked ? 'bg-emerald-500/10 border border-emerald-500/30' : ''
+                                className={`flex items-center space-x-2 p-2 rounded transition-colors ${
+                                  isChecked 
+                                    ? 'bg-emerald-500/10 border border-emerald-500/30' 
+                                    : isAvailable
+                                    ? 'hover:bg-slate-700/50'
+                                    : 'opacity-50 cursor-not-allowed bg-slate-800/30'
                                 }`}
                               >
                                 <Checkbox
                                   id={`ape-${category.code}`}
                                   checked={isChecked}
+                                  disabled={!isAvailable}
                                   onCheckedChange={(checked) => {
                                     if (checked) {
                                       setSelectedAPECategories(prev => [...prev, category.code]);
@@ -786,14 +826,23 @@ export default function ProspectFinder() {
                                       setSelectedAPECategories(prev => prev.filter(code => code !== category.code));
                                     }
                                   }}
-                                  className="border-slate-400 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                                  className={`border-slate-400 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500 ${
+                                    !isAvailable ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
                                 />
                                 <label
                                   htmlFor={`ape-${category.code}`}
-                                  className="text-sm text-slate-300 cursor-pointer flex-1"
+                                  className={`text-sm cursor-pointer flex-1 ${
+                                    isAvailable ? 'text-slate-300' : 'text-slate-500'
+                                  }`}
                                 >
                                   <div className="font-medium">{category.label}</div>
-                                  <div className="text-xs text-slate-500">{category.code}</div>
+                                  <div className="text-xs text-slate-500">
+                                    {category.code}
+                                    {!isAvailable && results.length > 0 && (
+                                      <span className="ml-1 text-slate-600">(non disponible)</span>
+                                    )}
+                                  </div>
                                 </label>
                               </div>
                             );
