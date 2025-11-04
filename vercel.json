@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "api/checkWebsite.ts": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/checkWebsite",
+      "destination": "/api/checkWebsite.ts"
+    }
+  ]
+}
+

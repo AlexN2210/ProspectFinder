@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Progress } from '@/components/ui/progress';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 
 interface Company {
@@ -170,32 +171,95 @@ const mockCompanies: Company[] = [
 
 export default function ProspectFinder() {
   const [city, setCity] = useState('');
+  const [apeCodeOrName, setApeCodeOrName] = useState('');
   const [results, setResults] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+  // Fonction pour vérifier le site web d'une entreprise
+  const checkWebsite = async (company: Company): Promise<{ hasWebsite: boolean; website?: string }> => {
+    try {
+      const response = await fetch('/api/checkWebsite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: company.name,
+          city: company.city,
+          address: `${company.address}, ${company.postalCode} ${company.city}`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('API error');
+      }
+
+      const data = await response.json();
+      return {
+        hasWebsite: data.hasWebsite || false,
+        website: data.website || undefined,
+      };
+    } catch (error) {
+      console.error('Error checking website:', error);
+      return { hasWebsite: false };
+    }
+  };
+
   const handleSearch = async () => {
     setIsLoading(true);
     setHasSearched(true);
     setError(null);
+    setResults([]);
+    setScanProgress(0);
 
     try {
-      // Simuler un appel API
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Simuler une recherche d'entreprises (remplacer par un vrai appel API)
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const filteredResults = mockCompanies.filter(company => {
+      let filteredResults = mockCompanies.filter(company => {
         const cityMatch = !city || company.city.toLowerCase().includes(city.toLowerCase());
-        return cityMatch;
+        const apeOrNameMatch = !apeCodeOrName || 
+          company.apeCode.toLowerCase().includes(apeCodeOrName.toLowerCase()) ||
+          company.name.toLowerCase().includes(apeCodeOrName.toLowerCase());
+        return cityMatch && apeOrNameMatch;
       });
 
+      // Afficher d'abord les résultats sans vérification de site web
       setResults(filteredResults);
+      setIsLoading(false);
+
+      // Ensuite, scanner chaque entreprise pour vérifier le site web
+      if (filteredResults.length > 0) {
+        setIsScanning(true);
+        setScanProgress(0);
+
+        const updatedResults = await Promise.all(
+          filteredResults.map(async (company, index) => {
+            const websiteCheck = await checkWebsite(company);
+            setScanProgress(((index + 1) / filteredResults.length) * 100);
+
+            return {
+              ...company,
+              hasWebsite: websiteCheck.hasWebsite,
+              site_web: websiteCheck.website || company.site_web || '',
+            };
+          })
+        );
+
+        setResults(updatedResults);
+        setIsScanning(false);
+        setScanProgress(100);
+      }
     } catch (err) {
       setError('Une erreur est survenue lors de la recherche');
-    } finally {
       setIsLoading(false);
+      setIsScanning(false);
     }
   };
 
@@ -291,11 +355,11 @@ export default function ProspectFinder() {
                 Recherche d'entreprises
               </CardTitle>
               <CardDescription className="text-slate-400">
-                Recherchez des entreprises par ville
+                Recherchez des entreprises par ville et code APE ou nom
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
                     <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
@@ -310,17 +374,31 @@ export default function ProspectFinder() {
                   />
                 </div>
 
-                <div className="flex items-end">
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
+                <div className="space-y-2">
+                  <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                    <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
+                    Code APE ou Nom entreprise
+                  </label>
+                  <Input
+                    placeholder="ex: 5610A ou Restaurant..."
+                    value={apeCodeOrName}
+                    onChange={(e) => setApeCodeOrName(e.target.value)}
+                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all text-sm sm:text-base"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                </div>
+
+                <div className="flex items-end sm:col-span-2 md:col-span-1">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
                     <Button
                       onClick={handleSearch}
-                      disabled={isLoading}
-                      className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base px-6"
+                      disabled={isLoading || isScanning}
+                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base"
                     >
-                      {isLoading ? (
+                      {isLoading || isScanning ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Recherche...
+                          {isScanning ? 'Scan en cours...' : 'Recherche...'}
                         </>
                       ) : (
                         <>
@@ -332,6 +410,24 @@ export default function ProspectFinder() {
                   </motion.div>
                 </div>
               </div>
+
+              {/* Barre de progression du scan */}
+              {isScanning && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 space-y-2"
+                >
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Vérification des sites web...</span>
+                    <span>{Math.round(scanProgress)}%</span>
+                  </div>
+                  <Progress 
+                    value={scanProgress} 
+                    className="h-2 bg-slate-800 [&>div]:bg-gradient-to-r [&>div]:from-cyan-500 [&>div]:to-emerald-500" 
+                  />
+                </motion.div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -365,7 +461,7 @@ export default function ProspectFinder() {
           </motion.div>
         )}
 
-        {!isLoading && hasSearched && (
+        {!isLoading && !isScanning && hasSearched && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
