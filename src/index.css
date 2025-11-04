@@ -39,10 +39,23 @@ a:hover {
   color: #535bf2;
 }
 
-body {
+* {
   margin: 0;
-  min-width: 320px;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
   min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: #0f172a;
+  color: rgba(255, 255, 255, 0.87);
 }
 
 h1 {
@@ -69,16 +82,15 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
+/* Désactiver le mode clair pour forcer le thème sombre */
 @media (prefers-color-scheme: light) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #0f172a;
   }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+  body {
+    background-color: #0f172a;
+    color: rgba(255, 255, 255, 0.87);
   }
 }
 

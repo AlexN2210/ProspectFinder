@@ -3,7 +3,7 @@ import ProspectFinder from './components/ProspectFinder';
 
 function App() {
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <ProspectFinder />
     </div>
   );

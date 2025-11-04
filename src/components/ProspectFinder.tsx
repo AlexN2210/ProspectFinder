@@ -262,21 +262,21 @@ export default function ProspectFinder() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="w-full min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="w-full max-w-7xl mx-auto space-y-6 md:space-y-8">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7 }}
-          className="text-center space-y-4 pt-8"
+          className="text-center space-y-3 sm:space-y-4 pt-4 sm:pt-6 md:pt-8 px-2"
         >
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <Building2 className="h-12 w-12 text-cyan-400 animate-pulse" />
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
+            <Building2 className="h-8 w-8 sm:h-10 sm:w-10 md:h-12 md:w-12 text-cyan-400 animate-pulse" />
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-cyan-400 to-emerald-400 bg-clip-text text-transparent">
               ProspectFinder
             </h1>
           </div>
-          <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+          <p className="text-slate-400 text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-2">
             Identifiez instantanément les entreprises sans présence en ligne dans votre secteur
           </p>
         </motion.div>
@@ -297,41 +297,41 @@ export default function ProspectFinder() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-cyan-400" />
+                  <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
                     Ville
                   </label>
                   <Input
                     placeholder="ex: Paris, Lyon, Reims..."
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
-                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all"
+                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all text-sm sm:text-base"
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-emerald-400" />
+                  <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                    <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
                     Code APE
                   </label>
                   <Input
                     placeholder="ex: 5610A, 1071C..."
                     value={apeCode}
                     onChange={(e) => setApeCode(e.target.value)}
-                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all"
+                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all text-sm sm:text-base"
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
 
-                <div className="flex items-end">
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <div className="flex items-end sm:col-span-2 md:col-span-1">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
                     <Button
                       onClick={handleSearch}
                       disabled={isLoading}
-                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300"
+                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base"
                     >
                       {isLoading ? (
                         <>
@@ -422,29 +422,29 @@ export default function ProspectFinder() {
                 ) : (
                   <>
                     {/* Statistiques */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                       <Card className="border-slate-800 bg-slate-800/30">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-4 sm:pt-6">
                           <div className="text-center space-y-2">
-                            <p className="text-slate-400 text-sm">Total d'entreprises</p>
-                            <p className="text-3xl font-bold text-cyan-400">{totalCompanies}</p>
+                            <p className="text-slate-400 text-xs sm:text-sm">Total d'entreprises</p>
+                            <p className="text-2xl sm:text-3xl font-bold text-cyan-400">{totalCompanies}</p>
                           </div>
                         </CardContent>
                       </Card>
                       <Card className="border-slate-800 bg-slate-800/30">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-4 sm:pt-6">
                           <div className="text-center space-y-2">
-                            <p className="text-slate-400 text-sm">Sans site web</p>
-                            <p className="text-3xl font-bold text-rose-400">{companiesWithoutWebsite}</p>
+                            <p className="text-slate-400 text-xs sm:text-sm">Sans site web</p>
+                            <p className="text-2xl sm:text-3xl font-bold text-rose-400">{companiesWithoutWebsite}</p>
                             <p className="text-xs text-slate-500">{percentageWithoutWebsite}%</p>
                           </div>
                         </CardContent>
                       </Card>
                       <Card className="border-slate-800 bg-slate-800/30">
-                        <CardContent className="pt-6">
+                        <CardContent className="pt-4 sm:pt-6">
                           <div className="text-center space-y-2">
-                            <p className="text-slate-400 text-sm">Avec site web</p>
-                            <p className="text-3xl font-bold text-emerald-400">{companiesWithWebsite}</p>
+                            <p className="text-slate-400 text-xs sm:text-sm">Avec site web</p>
+                            <p className="text-2xl sm:text-3xl font-bold text-emerald-400">{companiesWithWebsite}</p>
                           </div>
                         </CardContent>
                       </Card>
@@ -454,10 +454,10 @@ export default function ProspectFinder() {
                     {totalCompanies > 0 && (
                       <Card className="border-slate-800 bg-slate-800/30">
                         <CardHeader>
-                          <CardTitle className="text-lg text-slate-100">Répartition avec/sans site web</CardTitle>
+                          <CardTitle className="text-base sm:text-lg text-slate-100">Répartition avec/sans site web</CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <ChartContainer config={chartConfig} className="h-[300px]">
+                          <ChartContainer config={chartConfig} className="h-[250px] sm:h-[300px]">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
                                 <Pie
@@ -466,7 +466,7 @@ export default function ProspectFinder() {
                                   cy="50%"
                                   labelLine={false}
                                   label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                  outerRadius={100}
+                                  outerRadius={80}
                                   fill="#8884d8"
                                   dataKey="value"
                                 >
@@ -484,77 +484,79 @@ export default function ProspectFinder() {
                     )}
 
                     {/* Tableau */}
-                    <div className="rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-slate-800/50 hover:bg-slate-800/50">
-                              <TableHead className="text-cyan-400 font-semibold">Nom de l'entreprise</TableHead>
-                              <TableHead className="text-cyan-400 font-semibold">Adresse</TableHead>
-                              <TableHead className="text-cyan-400 font-semibold">Téléphone</TableHead>
-                              <TableHead className="text-cyan-400 font-semibold">Code APE</TableHead>
-                              <TableHead className="text-cyan-400 font-semibold">Site web</TableHead>
-                              <TableHead className="text-cyan-400 font-semibold">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            <AnimatePresence>
-                              {results.map((company, index) => (
-                                <motion.tr
-                                  key={company.id}
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0 }}
-                                  transition={{ delay: index * 0.05 }}
-                                  className="bg-slate-900/30 hover:bg-slate-800/30 transition-colors duration-200"
-                                >
-                                  <TableCell className="font-medium text-slate-100">
-                                    <div className="flex items-center gap-2">
-                                      <Building2 className="h-4 w-4 text-slate-500" />
-                                      {company.name}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-slate-300">
-                                    {company.address}, {company.postalCode} {company.city}
-                                  </TableCell>
-                                  <TableCell className="text-slate-300">
-                                    <div className="flex items-center gap-2">
-                                      <Phone className="h-3 w-3 text-slate-500" />
-                                      {company.phone}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="text-slate-300">
-                                    <Badge variant="outline" className="border-slate-700 text-slate-400">
-                                      {company.apeCode}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>
-                                    {company.hasWebsite && company.site_web ? (
-                                      <span className="text-emerald-400 text-xl font-bold" title={company.site_web}>
-                                        ✅
-                                      </span>
-                                    ) : (
-                                      <span className="text-rose-400 text-xl font-bold">❌</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openCompanyDetails(company)}
-                                        className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10"
-                                      >
-                                        <Eye className="mr-2 h-4 w-4" />
-                                        Voir fiche
-                                      </Button>
-                                    </motion.div>
-                                  </TableCell>
-                                </motion.tr>
-                              ))}
-                            </AnimatePresence>
-                          </TableBody>
-                        </Table>
+                    <div className="rounded-lg border border-slate-800 overflow-hidden w-full">
+                      <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <div className="inline-block min-w-full align-middle">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-slate-800/50 hover:bg-slate-800/50">
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Nom</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden md:table-cell">Adresse</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden lg:table-cell">Téléphone</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Code APE</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Site web</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              <AnimatePresence>
+                                {results.map((company, index) => (
+                                  <motion.tr
+                                    key={company.id}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className="bg-slate-900/30 hover:bg-slate-800/30 transition-colors duration-200"
+                                  >
+                                    <TableCell className="font-medium text-slate-100 text-xs sm:text-sm">
+                                      <div className="flex items-center gap-2">
+                                        <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
+                                        <span className="truncate">{company.name}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-slate-300 text-xs sm:text-sm hidden md:table-cell">
+                                      <span className="truncate block">{company.address}, {company.postalCode} {company.city}</span>
+                                    </TableCell>
+                                    <TableCell className="text-slate-300 text-xs sm:text-sm hidden lg:table-cell">
+                                      <div className="flex items-center gap-2">
+                                        <Phone className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                                        <span>{company.phone}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-slate-300 text-xs sm:text-sm">
+                                      <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs">
+                                        {company.apeCode}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs sm:text-sm">
+                                      {company.hasWebsite && company.site_web ? (
+                                        <span className="text-emerald-400 text-lg sm:text-xl font-bold" title={company.site_web}>
+                                          ✅
+                                        </span>
+                                      ) : (
+                                        <span className="text-rose-400 text-lg sm:text-xl font-bold">❌</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-xs sm:text-sm">
+                                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => openCompanyDetails(company)}
+                                          className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 text-xs sm:text-sm"
+                                        >
+                                          <Eye className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
+                                          <span className="hidden sm:inline">Voir fiche</span>
+                                        </Button>
+                                      </motion.div>
+                                    </TableCell>
+                                  </motion.tr>
+                                ))}
+                              </AnimatePresence>
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -567,7 +569,7 @@ export default function ProspectFinder() {
 
       {/* Modale de détail */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl bg-slate-900 border-slate-800 text-slate-100">
+        <DialogContent className="max-w-2xl w-[95vw] sm:w-full bg-slate-900 border-slate-800 text-slate-100 max-h-[90vh] overflow-y-auto">
           {selectedCompany && (
             <>
               <DialogHeader>
