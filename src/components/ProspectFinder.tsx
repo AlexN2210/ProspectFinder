@@ -170,7 +170,6 @@ const mockCompanies: Company[] = [
 
 export default function ProspectFinder() {
   const [city, setCity] = useState('');
-  const [apeCode, setApeCode] = useState('');
   const [results, setResults] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -189,8 +188,7 @@ export default function ProspectFinder() {
 
       const filteredResults = mockCompanies.filter(company => {
         const cityMatch = !city || company.city.toLowerCase().includes(city.toLowerCase());
-        const apeMatch = !apeCode || company.apeCode.includes(apeCode);
-        return cityMatch && apeMatch;
+        return cityMatch;
       });
 
       setResults(filteredResults);
@@ -293,11 +291,11 @@ export default function ProspectFinder() {
                 Recherche d'entreprises
               </CardTitle>
               <CardDescription className="text-slate-400">
-                Affinez votre recherche par ville et code APE
+                Recherchez des entreprises par ville
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
                     <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
@@ -312,26 +310,12 @@ export default function ProspectFinder() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
-                    Code APE
-                  </label>
-                  <Input
-                    placeholder="ex: 5610A, 1071C..."
-                    value={apeCode}
-                    onChange={(e) => setApeCode(e.target.value)}
-                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all text-sm sm:text-base"
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                </div>
-
-                <div className="flex items-end sm:col-span-2 md:col-span-1">
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
+                <div className="flex items-end">
+                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full sm:w-auto">
                     <Button
                       onClick={handleSearch}
                       disabled={isLoading}
-                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base"
+                      className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base px-6"
                     >
                       {isLoading ? (
                         <>
