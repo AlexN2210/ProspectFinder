@@ -318,16 +318,14 @@ export default function ProspectFinder() {
     
     APE_CATEGORIES.forEach(category => {
       const categoryCode = category.code.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
-      const categoryPrefix = categoryCode.substring(0, 4);
       
       // Vérifier si un code de résultat correspond à cette catégorie
+      // Correspondance exacte uniquement (pas de correspondance par préfixe pour éviter les faux positifs)
       const matches = normalizedResultCodes.some(resultCode => {
         // Correspondance exacte
         if (resultCode === categoryCode) return true;
-        // Correspondance par préfixe (4 premiers caractères)
-        if (resultCode.length >= 4 && resultCode.substring(0, 4) === categoryPrefix) return true;
-        // Correspondance si le code résultat commence par le code catégorie
-        if (resultCode.startsWith(categoryCode)) return true;
+        // Correspondance stricte : même longueur et commence par le code catégorie
+        if (resultCode.startsWith(categoryCode) && resultCode.length === categoryCode.length) return true;
         return false;
       });
       
@@ -376,29 +374,18 @@ export default function ProspectFinder() {
             .replace(/\s/g, '')
             .trim();
           
-          // Comparaison exacte (ex: 4711D === 4711D après normalisation)
+          // Comparaison exacte uniquement (ex: 4711D === 4711D, 5610C === 5610C)
+          // Ne pas faire de correspondance par préfixe car 56.10A (Restauration) ≠ 56.10C (Cafés)
           if (companyApeCode === categoryApeCode) {
             console.log(`✓ Match exact: ${company.name} (${company.apeCode} -> ${companyApeCode} === ${categoryApeCode})`);
             return true;
           }
           
-          // Comparaison par les 4 premiers caractères (code principal)
-          // Cela permet de matcher 5610A, 5610B, 5610C avec la catégorie 5610C
-          // Ex: '47.11D' normalisé en '4711D' avec préfixe '4711' devrait matcher '4711D'
-          if (companyApeCode.length >= 4 && categoryApeCode.length >= 4) {
-            const companyPrefix = companyApeCode.substring(0, 4);
-            const categoryPrefix = categoryApeCode.substring(0, 4);
-            
-            // Si les 4 premiers caractères correspondent (ex: '4711')
-            if (companyPrefix === categoryPrefix) {
-              console.log(`✓ Match par préfixe: ${company.name} (${company.apeCode} -> ${companyApeCode}, préfixe: ${companyPrefix} === ${categoryPrefix})`);
-              return true;
-            }
-          }
-          
-          // Comparaison si le code APE de l'entreprise commence par le code de catégorie complet
-          if (companyApeCode.startsWith(categoryApeCode)) {
-            console.log(`✓ Match par startsWith: ${company.name} (${company.apeCode} -> ${companyApeCode} startsWith ${categoryApeCode})`);
+          // Comparaison stricte : seulement si le code de l'entreprise commence par le code de catégorie complet
+          // (pour les cas où le code API retourne une sous-variante, mais pas pour des catégories différentes)
+          // Par exemple, si on cherche '5610C', on accepte '5610C' mais pas '5610A'
+          if (companyApeCode.startsWith(categoryApeCode) && companyApeCode.length === categoryApeCode.length) {
+            console.log(`✓ Match exact (startsWith même longueur): ${company.name} (${company.apeCode} -> ${companyApeCode} === ${categoryApeCode})`);
             return true;
           }
           
