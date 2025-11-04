@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
+import { APE_CATEGORIES, getAPELabel } from '@/data/apeCategories';
 
 interface Company {
   id: string;
@@ -39,6 +42,16 @@ export default function ProspectFinder() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // État pour la pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMorePages, setHasMorePages] = useState(false);
+  const [isLoadingPage, setIsLoadingPage] = useState(false);
+  
+  // État pour le filtrage par catégories APE
+  const [selectedAPECategories, setSelectedAPECategories] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<'name' | 'ape' | 'website'>('name');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
   
   // État pour l'autocomplétion
   interface CitySuggestion {
@@ -164,20 +177,20 @@ export default function ProspectFinder() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!city && !apeCodeOrName) {
-      setError('Veuillez remplir au moins un champ (Ville ou Code APE/Nom)');
-      return;
+  // Fonction pour charger une page de résultats
+  const loadPage = async (page: number, isNewSearch: boolean = false) => {
+    if (isNewSearch) {
+      setIsLoading(true);
+      setCurrentPage(1);
+      setResults([]);
+    } else {
+      setIsLoadingPage(true);
     }
-
-    setIsLoading(true);
-    setHasSearched(true);
+    
     setError(null);
-    setResults([]);
     setScanProgress(0);
 
     try {
-      // Appel à l'API pour rechercher de vraies entreprises
       const response = await fetch('/api/searchCompanies', {
         method: 'POST',
         headers: {
@@ -186,6 +199,7 @@ export default function ProspectFinder() {
         body: JSON.stringify({
           city: city,
           apeCodeOrName: apeCodeOrName || undefined,
+          page: page,
         }),
       });
 
@@ -195,78 +209,148 @@ export default function ProspectFinder() {
 
       const data = await response.json();
 
-      console.log('API Response:', data);
-
       if (data.error) {
         setError(`Erreur: ${data.error}`);
         setIsLoading(false);
+        setIsLoadingPage(false);
         return;
       }
 
       // Transformer les résultats en format Company avec hasWebsite initialisé à false
-      let filteredResults: Company[] = (data.companies || []).map((company: any) => ({
+      let newResults: Company[] = (data.companies || []).map((company: any) => ({
         ...company,
         hasWebsite: false, // Sera mis à jour lors du scan
         site_web: '',
       }));
 
-      console.log('Recherche effectuée:', { city, apeCodeOrName, resultsCount: filteredResults.length });
-
-      // Si aucune entreprise trouvée, afficher un message
-      if (filteredResults.length === 0) {
-        setError(`Aucune entreprise trouvée pour "${city}"${apeCodeOrName ? ` avec "${apeCodeOrName}"` : ''}. Essayez avec une autre ville ou un autre critère.`);
-        setIsLoading(false);
-        return;
+      // Si nouvelle recherche, remplacer les résultats, sinon ajouter
+      if (isNewSearch) {
+        setResults(newResults);
+      } else {
+        setResults(prev => [...prev, ...newResults]);
       }
 
-      // Afficher d'abord les résultats sans vérification de site web
-      setResults(filteredResults);
-      setIsLoading(false);
+      setHasMorePages(data.hasMore || false);
+      setCurrentPage(page);
 
-      // Ensuite, scanner chaque entreprise pour vérifier le site web
-      if (filteredResults.length > 0) {
-        setIsScanning(true);
-        setScanProgress(0);
+      if (isNewSearch) {
+        setIsLoading(false);
+        setHasSearched(true);
 
-        try {
-          const updatedResults = await Promise.all(
-            filteredResults.map(async (company, index) => {
-              const websiteCheck = await checkWebsite(company);
-              setScanProgress(((index + 1) / filteredResults.length) * 100);
+        // Scanner les sites web pour la première page uniquement
+        if (newResults.length > 0) {
+          setIsScanning(true);
+          setScanProgress(0);
 
-              return {
-                ...company,
-                hasWebsite: websiteCheck.hasWebsite,
-                site_web: websiteCheck.website || company.site_web || '',
-              };
-            })
-          );
+          try {
+            const updatedResults = await Promise.all(
+              newResults.map(async (company, index) => {
+                const websiteCheck = await checkWebsite(company);
+                setScanProgress(((index + 1) / newResults.length) * 100);
 
-          setResults(updatedResults);
-        } catch (scanError) {
-          console.error('Error during website scan:', scanError);
-          // En cas d'erreur, garder les résultats avec les données existantes
-          setResults(filteredResults);
-        } finally {
-          setIsScanning(false);
-          setScanProgress(100);
+                return {
+                  ...company,
+                  hasWebsite: websiteCheck.hasWebsite,
+                  site_web: websiteCheck.website || company.site_web || '',
+                };
+              })
+            );
+
+            setResults(updatedResults);
+          } catch (scanError) {
+            console.error('Error during website scan:', scanError);
+            setResults(newResults);
+          } finally {
+            setIsScanning(false);
+            setScanProgress(100);
+          }
         }
       } else {
-        // Aucun résultat, arrêter le loading
-        setIsLoading(false);
+        setIsLoadingPage(false);
+      }
+
+      // Si aucune entreprise trouvée et c'est une nouvelle recherche
+      if (isNewSearch && newResults.length === 0) {
+        setError(`Aucune entreprise trouvée pour "${city}"${apeCodeOrName ? ` avec "${apeCodeOrName}"` : ''}. Essayez avec une autre ville ou un autre critère.`);
       }
     } catch (err) {
       setError('Une erreur est survenue lors de la recherche');
       setIsLoading(false);
+      setIsLoadingPage(false);
       setIsScanning(false);
     }
   };
 
+  const handleSearch = async () => {
+    if (!city && !apeCodeOrName) {
+      setError('Veuillez remplir au moins un champ (Ville ou Code APE/Nom)');
+      return;
+    }
+
+    // Charger la première page
+    await loadPage(1, true);
+  };
+
+  const loadNextPage = async () => {
+    if (hasMorePages && !isLoadingPage) {
+      await loadPage(currentPage + 1, false);
+    }
+  };
+
+  // Toggle d'une catégorie APE
+  const toggleAPECategory = (categoryCode: string) => {
+    setSelectedAPECategories(prev => 
+      prev.includes(categoryCode)
+        ? prev.filter(code => code !== categoryCode)
+        : [...prev, categoryCode]
+    );
+  };
+
+  // Réinitialiser les filtres
+  const resetFilters = () => {
+    setSelectedAPECategories([]);
+    setSortBy('name');
+  };
+
+  // Calcul des résultats filtrés et triés
+  const filteredAndSortedResults = useMemo(() => {
+    let filtered = [...results];
+
+    // Filtrer par catégories APE si des catégories sont sélectionnées
+    if (selectedAPECategories.length > 0) {
+      filtered = filtered.filter(company => 
+        selectedAPECategories.some(categoryCode => 
+          company.apeCode.startsWith(categoryCode.substring(0, 4))
+        )
+      );
+    }
+
+    // Trier selon le critère sélectionné
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name, 'fr');
+        case 'ape':
+          return a.apeCode.localeCompare(b.apeCode);
+        case 'website':
+          // Mettre ceux sans site web en premier
+          if (a.hasWebsite === b.hasWebsite) {
+            return a.name.localeCompare(b.name, 'fr');
+          }
+          return a.hasWebsite ? 1 : -1;
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [results, selectedAPECategories, sortBy]);
+
   const exportToCSV = () => {
-    const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Site Web', 'Code APE'];
+    const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Site Web', 'Code APE', 'Catégorie'];
     const csvContent = [
       headers.join(','),
-      ...results.map(company =>
+      ...filteredAndSortedResults.map(company =>
         [
           `"${company.name}"`,
           `"${company.address}"`,
@@ -275,7 +359,8 @@ export default function ProspectFinder() {
           `"${company.phone}"`,
           `"${company.email || ''}"`,
           `"${company.site_web || ''}"`,
-          company.apeCode
+          company.apeCode,
+          `"${getAPELabel(company.apeCode)}"`
         ].join(',')
       )
     ].join('\n');
@@ -544,11 +629,102 @@ export default function ProspectFinder() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* Panel de filtres */}
+                {showFilterPanel && results.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="border border-slate-700 rounded-lg p-4 bg-slate-800/50"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
+                        <Filter className="h-5 w-5 text-emerald-400" />
+                        Filtres et tri
+                      </h3>
+                      <div className="flex gap-2">
+                        {(selectedAPECategories.length > 0 || sortBy !== 'name') && (
+                          <Button
+                            onClick={resetFilters}
+                            variant="ghost"
+                            size="sm"
+                            className="text-slate-400 hover:text-slate-200"
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Réinitialiser
+                          </Button>
+                        )}
+                        <Button
+                          onClick={() => setShowFilterPanel(false)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-400 hover:text-slate-200"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Tri */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-300">Trier par</label>
+                        <Select value={sortBy} onValueChange={(value: 'name' | 'ape' | 'website') => setSortBy(value)}>
+                          <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="name">Nom (A-Z)</SelectItem>
+                            <SelectItem value="ape">Code APE</SelectItem>
+                            <SelectItem value="website">Sans site web d'abord</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Filtres par catégories APE */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-300">Filtrer par catégorie</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 border border-slate-700 rounded-lg">
+                          {APE_CATEGORIES.map((category) => (
+                            <div key={category.code} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`ape-${category.code}`}
+                                checked={selectedAPECategories.includes(category.code)}
+                                onCheckedChange={() => toggleAPECategory(category.code)}
+                                className="border-slate-600"
+                              />
+                              <label
+                                htmlFor={`ape-${category.code}`}
+                                className="text-sm text-slate-300 cursor-pointer flex-1"
+                              >
+                                <div className="font-medium">{category.label}</div>
+                                <div className="text-xs text-slate-500">{category.code}</div>
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 {results.length === 0 ? (
                   <div className="text-center py-12 space-y-4">
                     <Building2 className="h-16 w-16 mx-auto text-slate-700" />
                     <p className="text-slate-400 text-lg">Aucune entreprise trouvée</p>
                     <p className="text-slate-500 text-sm">Essayez d'élargir vos critères de recherche</p>
+                  </div>
+                ) : filteredAndSortedResults.length === 0 ? (
+                  <div className="text-center py-12 space-y-4">
+                    <Filter className="h-16 w-16 mx-auto text-slate-700" />
+                    <p className="text-slate-400 text-lg">Aucune entreprise ne correspond aux filtres</p>
+                    <Button
+                      onClick={resetFilters}
+                      variant="outline"
+                      className="border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10"
+                    >
+                      Réinitialiser les filtres
+                    </Button>
                   </div>
                 ) : (
                   <>
@@ -631,7 +807,7 @@ export default function ProspectFinder() {
                             </TableHeader>
                             <TableBody>
                               <AnimatePresence>
-                                {results.map((company, index) => (
+                                {filteredAndSortedResults.map((company, index) => (
                                   <motion.tr
                                     key={company.id}
                                     initial={{ opacity: 0, y: 10 }}
@@ -656,9 +832,12 @@ export default function ProspectFinder() {
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-slate-300 text-xs sm:text-sm">
-                                      <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs">
-                                        {company.apeCode}
-                                      </Badge>
+                                      <div className="flex flex-col gap-1">
+                                        <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs w-fit">
+                                          {company.apeCode}
+                                        </Badge>
+                                        <span className="text-xs text-slate-500">{getAPELabel(company.apeCode)}</span>
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-xs sm:text-sm">
                                       {company.hasWebsite && company.site_web ? (
@@ -690,6 +869,41 @@ export default function ProspectFinder() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Bouton "Charger plus" */}
+                    {hasMorePages && (
+                      <div className="flex justify-center pt-4">
+                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                          <Button
+                            onClick={loadNextPage}
+                            disabled={isLoadingPage}
+                            variant="outline"
+                            className="border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10 hover:text-cyan-300 transition-all duration-300"
+                          >
+                            {isLoadingPage ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Chargement...
+                              </>
+                            ) : (
+                              <>
+                                Charger plus de résultats (page {currentPage + 1})
+                                <Download className="ml-2 h-4 w-4" />
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Message de fin */}
+                    {!hasMorePages && results.length > 0 && (
+                      <div className="text-center py-4">
+                        <p className="text-slate-400 text-sm">
+                          Tous les résultats ont été chargés ({results.length} entreprise{results.length > 1 ? 's' : ''})
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </CardContent>

@@ -12,7 +12,8 @@ L'application utilise maintenant l'**API Recherche Entreprises** du gouvernement
 ### 1. Recherche d'entreprises
 - L'API `/api/searchCompanies` interroge l'API Recherche Entreprises
 - Recherche par **ville** et optionnellement par **code APE** ou **nom d'entreprise**
-- Retourne jusqu'à 50 entreprises par recherche
+- Récupère automatiquement plusieurs pages de résultats (pagination)
+- Retourne jusqu'à 100 entreprises par recherche (4 pages × 25 résultats)
 
 ### 2. Vérification des sites web
 - Pour chaque entreprise trouvée, l'API `/api/checkWebsite` vérifie l'existence d'un site web

@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 interface RequestBody {
   city: string;
   apeCodeOrName?: string;
+  page?: number;
 }
 
 interface Company {
@@ -20,6 +21,9 @@ interface Company {
 
 interface ResponseData {
   companies: Company[];
+  totalPages?: number;
+  currentPage?: number;
+  hasMore?: boolean;
   error?: string;
 }
 
@@ -39,7 +43,7 @@ export default async function handler(
   }
 
   try {
-    const { city, apeCodeOrName } = req.body as RequestBody;
+    const { city, apeCodeOrName, page = 1 } = req.body as RequestBody;
 
     if (!city) {
       return res.status(400).json({ 
@@ -53,11 +57,11 @@ export default async function handler(
     
     if (!sireneApiKey) {
       // Fallback: utiliser l'API Sirene publique (gratuite mais limitée)
-      return await searchWithPublicSireneAPI(city, apeCodeOrName, res);
+      return await searchWithPublicSireneAPI(city, apeCodeOrName, page, res);
     }
 
     // Utiliser l'API Sirene avec clé (si disponible)
-    return await searchWithSireneAPI(city, apeCodeOrName, sireneApiKey, res);
+    return await searchWithSireneAPI(city, apeCodeOrName, page, sireneApiKey, res);
 
   } catch (error) {
     console.error('Error searching companies:', error);
@@ -75,6 +79,7 @@ export default async function handler(
 async function searchWithPublicSireneAPI(
   city: string,
   apeCodeOrName: string | undefined,
+  page: number,
   res: VercelResponse<ResponseData>
 ) {
   try {
@@ -92,11 +97,11 @@ async function searchWithPublicSireneAPI(
       }
     }
 
-    console.log('Searching with query:', query);
+    console.log(`Searching with query: ${query}, page: ${page}`);
 
     // API Recherche Entreprises (publique et gratuite)
     // per_page doit être entre 1 et 25 (par défaut 10)
-    const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25`;
+    const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25&page=${page}`;
     console.log('API URL:', apiUrl);
 
     const response = await fetch(apiUrl, {
@@ -114,8 +119,7 @@ async function searchWithPublicSireneAPI(
     }
 
     const data = await response.json();
-    console.log('API Response data:', JSON.stringify(data, null, 2));
-    console.log('Results count:', data.results?.length || 0);
+    console.log(`Page ${page} - Results count:`, data.results?.length || 0);
 
     // Filtrer les résultats pour ne garder que ceux de la ville demandée
     let filteredResults = (data.results || []);
@@ -160,8 +164,15 @@ async function searchWithPublicSireneAPI(
       };
     });
 
-    console.log(`Found ${companies.length} companies after filtering`);
-    return res.status(200).json({ companies });
+    // Vérifier s'il y a une page suivante (si on a 25 résultats, il y a probablement une page suivante)
+    const hasMore = filteredResults.length === 25;
+
+    console.log(`Found ${companies.length} companies on page ${page}, hasMore: ${hasMore}`);
+    return res.status(200).json({ 
+      companies,
+      currentPage: page,
+      hasMore
+    });
 
   } catch (error) {
     console.error('Error with public Sirene API:', error);
@@ -179,6 +190,7 @@ async function searchWithPublicSireneAPI(
 async function searchWithSireneAPI(
   city: string,
   apeCodeOrName: string | undefined,
+  page: number,
   apiKey: string,
   res: VercelResponse<ResponseData>
 ) {
@@ -195,7 +207,7 @@ async function searchWithSireneAPI(
     }
 
     const response = await fetch(
-      `https://recherche-entreprises.api.gouv.fr/search?q=${query}&per_page=25`,
+      `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25&page=${page}`,
       {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -219,11 +231,18 @@ async function searchWithSireneAPI(
       phone: etab.telephone || undefined,
       email: etab.email || undefined,
       apeCode: etab.activite_principale || '',
-      latitude: etab.latitude ? parseFloat(etab.latitude) : undefined,
-      longitude: etab.longitude ? parseFloat(etab.longitude) : undefined,
+      latitude: etab.latitude ? parseFloat(String(etab.latitude)) : undefined,
+      longitude: etab.longitude ? parseFloat(String(etab.longitude)) : undefined,
     }));
 
-    return res.status(200).json({ companies });
+    // Vérifier s'il y a une page suivante
+    const hasMore = companies.length === 25;
+
+    return res.status(200).json({ 
+      companies,
+      currentPage: page,
+      hasMore
+    });
 
   } catch (error) {
     console.error('Error with Sirene API:', error);
