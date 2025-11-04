@@ -321,11 +321,53 @@ export default function ProspectFinder() {
 
     // Filtrer par catégories APE si des catégories sont sélectionnées
     if (selectedAPECategories.length > 0) {
-      filtered = filtered.filter(company => 
-        selectedAPECategories.some(categoryCode => 
-          company.apeCode.startsWith(categoryCode.substring(0, 4))
-        )
-      );
+      filtered = filtered.filter(company => {
+        // Ignorer les entreprises sans code APE si on filtre
+        if (!company.apeCode || company.apeCode.trim() === '') {
+          return false;
+        }
+        
+        // Normaliser le code APE de l'entreprise (enlever les points, espaces, mettre en majuscule)
+        const companyApeCode = company.apeCode
+          .toUpperCase()
+          .replace(/\./g, '') // Enlever les points (ex: 56.10A -> 5610A)
+          .replace(/\s/g, '') // Enlever les espaces
+          .trim();
+        
+        return selectedAPECategories.some(categoryCode => {
+          // Normaliser le code de catégorie
+          const categoryApeCode = categoryCode
+            .toUpperCase()
+            .replace(/\./g, '')
+            .replace(/\s/g, '')
+            .trim();
+          
+          // Comparaison exacte (ex: 5610A === 5610A)
+          if (companyApeCode === categoryApeCode) {
+            return true;
+          }
+          
+          // Comparaison par les 4 premiers caractères (code principal)
+          // Cela permet de matcher 5610A, 5610B, 5610C avec la catégorie 5610A
+          if (companyApeCode.length >= 4 && categoryApeCode.length >= 4) {
+            const companyPrefix = companyApeCode.substring(0, 4);
+            const categoryPrefix = categoryApeCode.substring(0, 4);
+            
+            // Si les 4 premiers caractères correspondent (ex: 5610)
+            if (companyPrefix === categoryPrefix) {
+              return true;
+            }
+          }
+          
+          // Comparaison si le code APE de l'entreprise commence par le code de catégorie complet
+          // (pour des cas spéciaux où on veut matcher une sous-catégorie)
+          if (companyApeCode.startsWith(categoryApeCode)) {
+            return true;
+          }
+          
+          return false;
+        });
+      });
     }
 
     // Trier selon le critère sélectionné
