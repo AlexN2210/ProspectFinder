@@ -326,49 +326,50 @@ export default function ProspectFinder() {
         }
         
         // Normaliser le code APE de l'entreprise (enlever les points, espaces, mettre en majuscule)
+        // Format API: '47.11D' -> '4711D'
         const companyApeCode = company.apeCode
           .toUpperCase()
-          .replace(/\./g, '') // Enlever les points (ex: 56.10A -> 5610A)
+          .replace(/\./g, '') // Enlever les points (ex: 47.11D -> 4711D, 56.10A -> 5610A)
           .replace(/\s/g, '') // Enlever les espaces
           .trim();
         
         const matches = selectedAPECategories.some(categoryCode => {
-          // Normaliser le code de catégorie
+          // Normaliser le code de catégorie (déjà sans point normalement, mais on normalise quand même)
+          // Format catégorie: '4711D' ou '5610C'
           const categoryApeCode = categoryCode
             .toUpperCase()
             .replace(/\./g, '')
             .replace(/\s/g, '')
             .trim();
           
-          // Comparaison exacte (ex: 5610A === 5610A)
+          // Comparaison exacte (ex: 4711D === 4711D après normalisation)
           if (companyApeCode === categoryApeCode) {
+            console.log(`✓ Match exact: ${company.name} (${company.apeCode} -> ${companyApeCode} === ${categoryApeCode})`);
             return true;
           }
           
           // Comparaison par les 4 premiers caractères (code principal)
-          // Cela permet de matcher 5610A, 5610B, 5610C avec la catégorie 5610A
+          // Cela permet de matcher 5610A, 5610B, 5610C avec la catégorie 5610C
+          // Ex: '47.11D' normalisé en '4711D' avec préfixe '4711' devrait matcher '4711D'
           if (companyApeCode.length >= 4 && categoryApeCode.length >= 4) {
             const companyPrefix = companyApeCode.substring(0, 4);
             const categoryPrefix = categoryApeCode.substring(0, 4);
             
-            // Si les 4 premiers caractères correspondent (ex: 5610)
+            // Si les 4 premiers caractères correspondent (ex: '4711')
             if (companyPrefix === categoryPrefix) {
+              console.log(`✓ Match par préfixe: ${company.name} (${company.apeCode} -> ${companyApeCode}, préfixe: ${companyPrefix} === ${categoryPrefix})`);
               return true;
             }
           }
           
           // Comparaison si le code APE de l'entreprise commence par le code de catégorie complet
-          // (pour des cas spéciaux où on veut matcher une sous-catégorie)
           if (companyApeCode.startsWith(categoryApeCode)) {
+            console.log(`✓ Match par startsWith: ${company.name} (${company.apeCode} -> ${companyApeCode} startsWith ${categoryApeCode})`);
             return true;
           }
           
           return false;
         });
-        
-        if (matches) {
-          console.log(`✓ Match: ${company.name} (${company.apeCode} -> ${companyApeCode})`);
-        }
         
         return matches;
       });
