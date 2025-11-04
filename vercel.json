@@ -2,12 +2,19 @@
   "functions": {
     "api/checkWebsite.ts": {
       "maxDuration": 10
+    },
+    "api/searchCompanies.ts": {
+      "maxDuration": 10
     }
   },
   "rewrites": [
     {
       "source": "/api/checkWebsite",
       "destination": "/api/checkWebsite.ts"
+    },
+    {
+      "source": "/api/searchCompanies",
+      "destination": "/api/searchCompanies.ts"
     }
   ]
 }

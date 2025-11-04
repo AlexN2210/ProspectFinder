@@ -26,148 +26,7 @@ interface Company {
   longitude?: number;
 }
 
-const mockCompanies: Company[] = [
-  { 
-    id: '1', 
-    name: 'Boulangerie Dupont', 
-    address: '12 Rue de la Paix', 
-    city: 'Paris', 
-    postalCode: '75001',
-    phone: '01 42 86 42 86', 
-    email: 'contact@boulangeriedupont.fr',
-    site_web: '',
-    hasWebsite: false, 
-    apeCode: '1071C',
-    latitude: 48.8566,
-    longitude: 2.3522
-  },
-  { 
-    id: '2', 
-    name: 'Plomberie Martin', 
-    address: '8 Avenue Victor Hugo', 
-    city: 'Lyon', 
-    postalCode: '69001',
-    phone: '04 78 90 12 34', 
-    email: 'info@plomberiemartin.fr',
-    site_web: 'https://www.plomberiemartin.fr',
-    hasWebsite: true, 
-    apeCode: '4322A',
-    latitude: 45.7640,
-    longitude: 4.8357
-  },
-  { 
-    id: '3', 
-    name: 'Salon Coiffure Élégance', 
-    address: '25 Boulevard Gambetta', 
-    city: 'Marseille', 
-    postalCode: '13001',
-    phone: '04 91 55 67 89', 
-    email: 'contact@salon-elegance.fr',
-    site_web: 'https://www.salon-elegance.fr',
-    hasWebsite: true, 
-    apeCode: '9602A',
-    latitude: 43.2965,
-    longitude: 5.3698
-  },
-  { 
-    id: '4', 
-    name: 'Restaurant Le Gourmet', 
-    address: '34 Rue du Commerce', 
-    city: 'Toulouse', 
-    postalCode: '31000',
-    phone: '05 61 22 33 44', 
-    email: 'reservation@legourmet.fr',
-    site_web: '',
-    hasWebsite: false, 
-    apeCode: '5610A',
-    latitude: 43.6047,
-    longitude: 1.4442
-  },
-  { 
-    id: '5', 
-    name: 'Garage Auto Service', 
-    address: '15 Rue de la République', 
-    city: 'Nice', 
-    postalCode: '06000',
-    phone: '04 93 88 99 00', 
-    email: 'contact@garage-autoservice.fr',
-    site_web: '',
-    hasWebsite: false, 
-    apeCode: '4520A',
-    latitude: 43.7102,
-    longitude: 7.2620
-  },
-  { 
-    id: '6', 
-    name: 'Pharmacie de la Place', 
-    address: '7 Place de la Mairie', 
-    city: 'Nantes', 
-    postalCode: '44000',
-    phone: '02 40 11 22 33', 
-    email: 'pharmacie@pharmacie-place.fr',
-    site_web: 'https://www.pharmacie-place.fr',
-    hasWebsite: true, 
-    apeCode: '4773Z',
-    latitude: 47.2184,
-    longitude: -1.5536
-  },
-  { 
-    id: '7', 
-    name: 'Menuiserie Artisanale', 
-    address: '19 Chemin des Acacias', 
-    city: 'Strasbourg', 
-    postalCode: '67000',
-    phone: '03 88 44 55 66', 
-    email: 'info@menuiserie-artisanale.fr',
-    site_web: '',
-    hasWebsite: false, 
-    apeCode: '1623Z',
-    latitude: 48.5734,
-    longitude: 7.7521
-  },
-  { 
-    id: '8', 
-    name: 'Fleuriste La Rose', 
-    address: '3 Rue des Fleurs', 
-    city: 'Bordeaux', 
-    postalCode: '33000',
-    phone: '05 56 77 88 99', 
-    email: 'contact@fleuriste-larose.fr',
-    site_web: '',
-    hasWebsite: false, 
-    apeCode: '4776Z',
-    latitude: 44.8378,
-    longitude: -0.5792
-  },
-  { 
-    id: '9', 
-    name: 'Cabinet Comptable Experts', 
-    address: '42 Avenue Foch', 
-    city: 'Lille', 
-    postalCode: '59000',
-    phone: '03 20 99 00 11', 
-    email: 'contact@cabinet-experts.fr',
-    site_web: 'https://www.cabinet-experts.fr',
-    hasWebsite: true, 
-    apeCode: '6920Z',
-    latitude: 50.6292,
-    longitude: 3.0573
-  },
-  { 
-    id: '10', 
-    name: 'Boucherie Traditionnelle', 
-    address: '9 Rue du Marché', 
-    city: 'Rennes', 
-    postalCode: '35000',
-    phone: '02 99 22 33 44', 
-    email: 'contact@boucherie-traditionnelle.fr',
-    site_web: '',
-    hasWebsite: false, 
-    apeCode: '4722Z',
-    latitude: 48.1173,
-    longitude: -1.6778
-  },
-];
+// Les données mockées ont été supprimées - l'application utilise maintenant l'API Recherche Entreprises
 
 export default function ProspectFinder() {
   const [city, setCity] = useState('');
@@ -197,7 +56,11 @@ export default function ProspectFinder() {
       });
 
       if (!response.ok) {
-        throw new Error('API error');
+        console.warn('API checkWebsite not available');
+        return {
+          hasWebsite: false,
+          website: undefined,
+        };
       }
 
       const data = await response.json();
@@ -206,12 +69,20 @@ export default function ProspectFinder() {
         website: data.website || undefined,
       };
     } catch (error) {
-      console.error('Error checking website:', error);
-      return { hasWebsite: false };
+      console.warn('Error checking website:', error);
+      return {
+        hasWebsite: false,
+        website: undefined,
+      };
     }
   };
 
   const handleSearch = async () => {
+    if (!city && !apeCodeOrName) {
+      setError('Veuillez remplir au moins un champ (Ville ou Code APE/Nom)');
+      return;
+    }
+
     setIsLoading(true);
     setHasSearched(true);
     setError(null);
@@ -219,16 +90,45 @@ export default function ProspectFinder() {
     setScanProgress(0);
 
     try {
-      // Simuler une recherche d'entreprises (remplacer par un vrai appel API)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      let filteredResults = mockCompanies.filter(company => {
-        const cityMatch = !city || company.city.toLowerCase().includes(city.toLowerCase());
-        const apeOrNameMatch = !apeCodeOrName || 
-          company.apeCode.toLowerCase().includes(apeCodeOrName.toLowerCase()) ||
-          company.name.toLowerCase().includes(apeCodeOrName.toLowerCase());
-        return cityMatch && apeOrNameMatch;
+      // Appel à l'API pour rechercher de vraies entreprises
+      const response = await fetch('/api/searchCompanies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          city: city,
+          apeCodeOrName: apeCodeOrName || undefined,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la recherche');
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.error);
+        setIsLoading(false);
+        return;
+      }
+
+      // Transformer les résultats en format Company avec hasWebsite initialisé à false
+      let filteredResults: Company[] = (data.companies || []).map((company: any) => ({
+        ...company,
+        hasWebsite: false, // Sera mis à jour lors du scan
+        site_web: '',
+      }));
+
+      console.log('Recherche effectuée:', { city, apeCodeOrName, resultsCount: filteredResults.length });
+
+      // Si aucune entreprise trouvée, afficher un message
+      if (filteredResults.length === 0) {
+        setError('Aucune entreprise trouvée pour ces critères');
+        setIsLoading(false);
+        return;
+      }
 
       // Afficher d'abord les résultats sans vérification de site web
       setResults(filteredResults);
@@ -239,22 +139,32 @@ export default function ProspectFinder() {
         setIsScanning(true);
         setScanProgress(0);
 
-        const updatedResults = await Promise.all(
-          filteredResults.map(async (company, index) => {
-            const websiteCheck = await checkWebsite(company);
-            setScanProgress(((index + 1) / filteredResults.length) * 100);
+        try {
+          const updatedResults = await Promise.all(
+            filteredResults.map(async (company, index) => {
+              const websiteCheck = await checkWebsite(company);
+              setScanProgress(((index + 1) / filteredResults.length) * 100);
 
-            return {
-              ...company,
-              hasWebsite: websiteCheck.hasWebsite,
-              site_web: websiteCheck.website || company.site_web || '',
-            };
-          })
-        );
+              return {
+                ...company,
+                hasWebsite: websiteCheck.hasWebsite,
+                site_web: websiteCheck.website || company.site_web || '',
+              };
+            })
+          );
 
-        setResults(updatedResults);
-        setIsScanning(false);
-        setScanProgress(100);
+          setResults(updatedResults);
+        } catch (scanError) {
+          console.error('Error during website scan:', scanError);
+          // En cas d'erreur, garder les résultats avec les données existantes
+          setResults(filteredResults);
+        } finally {
+          setIsScanning(false);
+          setScanProgress(100);
+        }
+      } else {
+        // Aucun résultat, arrêter le loading
+        setIsLoading(false);
       }
     } catch (err) {
       setError('Une erreur est survenue lors de la recherche');
@@ -461,7 +371,7 @@ export default function ProspectFinder() {
           </motion.div>
         )}
 
-        {!isLoading && !isScanning && hasSearched && (
+        {!isLoading && hasSearched && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
