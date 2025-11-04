@@ -300,15 +300,6 @@ export default function ProspectFinder() {
     }
   };
 
-  // Toggle d'une catégorie APE
-  const toggleAPECategory = (categoryCode: string) => {
-    setSelectedAPECategories(prev => 
-      prev.includes(categoryCode)
-        ? prev.filter(code => code !== categoryCode)
-        : [...prev, categoryCode]
-    );
-  };
-
   // Réinitialiser les filtres
   const resetFilters = () => {
     setSelectedAPECategories([]);
@@ -321,6 +312,13 @@ export default function ProspectFinder() {
 
     // Filtrer par catégories APE si des catégories sont sélectionnées
     if (selectedAPECategories.length > 0) {
+      // Debug: Afficher les codes APE disponibles dans les résultats
+      if (filtered.length > 0) {
+        const uniqueApeCodes = [...new Set(filtered.map(c => c.apeCode).filter(Boolean))];
+        console.log('Codes APE disponibles dans les résultats:', uniqueApeCodes);
+        console.log('Catégories sélectionnées:', selectedAPECategories);
+      }
+      
       filtered = filtered.filter(company => {
         // Ignorer les entreprises sans code APE si on filtre
         if (!company.apeCode || company.apeCode.trim() === '') {
@@ -334,7 +332,7 @@ export default function ProspectFinder() {
           .replace(/\s/g, '') // Enlever les espaces
           .trim();
         
-        return selectedAPECategories.some(categoryCode => {
+        const matches = selectedAPECategories.some(categoryCode => {
           // Normaliser le code de catégorie
           const categoryApeCode = categoryCode
             .toUpperCase()
@@ -367,7 +365,15 @@ export default function ProspectFinder() {
           
           return false;
         });
+        
+        if (matches) {
+          console.log(`✓ Match: ${company.name} (${company.apeCode} -> ${companyApeCode})`);
+        }
+        
+        return matches;
       });
+      
+      console.log(`Filtrage: ${results.length} -> ${filtered.length} entreprises`);
     }
 
     // Trier selon le critère sélectionné
@@ -759,24 +765,38 @@ export default function ProspectFinder() {
                       {/* Filtres par catégories APE */}
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-300">Filtrer par catégorie</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 border border-slate-700 rounded-lg">
-                          {APE_CATEGORIES.map((category) => (
-                            <div key={category.code} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`ape-${category.code}`}
-                                checked={selectedAPECategories.includes(category.code)}
-                                onCheckedChange={() => toggleAPECategory(category.code)}
-                                className="border-slate-600"
-                              />
-                              <label
-                                htmlFor={`ape-${category.code}`}
-                                className="text-sm text-slate-300 cursor-pointer flex-1"
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 border border-slate-700 rounded-lg bg-slate-900/30">
+                          {APE_CATEGORIES.map((category) => {
+                            const isChecked = selectedAPECategories.includes(category.code);
+                            return (
+                              <div 
+                                key={category.code} 
+                                className={`flex items-center space-x-2 p-2 rounded hover:bg-slate-700/50 transition-colors ${
+                                  isChecked ? 'bg-emerald-500/10 border border-emerald-500/30' : ''
+                                }`}
                               >
-                                <div className="font-medium">{category.label}</div>
-                                <div className="text-xs text-slate-500">{category.code}</div>
-                              </label>
-                            </div>
-                          ))}
+                                <Checkbox
+                                  id={`ape-${category.code}`}
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedAPECategories(prev => [...prev, category.code]);
+                                    } else {
+                                      setSelectedAPECategories(prev => prev.filter(code => code !== category.code));
+                                    }
+                                  }}
+                                  className="border-slate-400 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                                />
+                                <label
+                                  htmlFor={`ape-${category.code}`}
+                                  className="text-sm text-slate-300 cursor-pointer flex-1"
+                                >
+                                  <div className="font-medium">{category.label}</div>
+                                  <div className="text-xs text-slate-500">{category.code}</div>
+                                </label>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
