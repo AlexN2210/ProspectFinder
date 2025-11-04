@@ -307,6 +307,8 @@ export default function ProspectFinder() {
   };
 
   // Calcul des catégories disponibles dans les résultats
+  // Pour l'affichage, on est plus permissif (préfixe de 4 caractères) pour montrer les secteurs disponibles
+  // Le filtrage réel sera strict (correspondance exacte uniquement)
   const availableCategories = useMemo(() => {
     if (results.length === 0) return new Set<string>();
     
@@ -318,12 +320,18 @@ export default function ProspectFinder() {
     
     APE_CATEGORIES.forEach(category => {
       const categoryCode = category.code.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+      const categoryPrefix = categoryCode.length >= 4 ? categoryCode.substring(0, 4) : categoryCode;
       
-      // Vérifier si un code de résultat correspond à cette catégorie
-      // Correspondance exacte uniquement (pas de correspondance par préfixe pour éviter les faux positifs)
+      // Pour l'affichage des catégories disponibles, on accepte par préfixe (4 premiers caractères)
+      // Cela permet de montrer qu'il y a des entreprises dans ce secteur
       const matches = normalizedResultCodes.some(resultCode => {
         // Correspondance exacte
         if (resultCode === categoryCode) return true;
+        // Correspondance par préfixe (4 premiers caractères) pour montrer les secteurs disponibles
+        if (resultCode.length >= 4 && categoryPrefix.length === 4) {
+          const resultPrefix = resultCode.substring(0, 4);
+          if (resultPrefix === categoryPrefix) return true;
+        }
         // Correspondance stricte : même longueur et commence par le code catégorie
         if (resultCode.startsWith(categoryCode) && resultCode.length === categoryCode.length) return true;
         return false;
