@@ -95,7 +95,8 @@ async function searchWithPublicSireneAPI(
     console.log('Searching with query:', query);
 
     // API Recherche Entreprises (publique et gratuite)
-    const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=50`;
+    // per_page doit être entre 1 et 25 (par défaut 10)
+    const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25`;
     console.log('API URL:', apiUrl);
 
     const response = await fetch(apiUrl, {
@@ -194,7 +195,7 @@ async function searchWithSireneAPI(
     }
 
     const response = await fetch(
-      `https://recherche-entreprises.api.gouv.fr/search?q=${query}&per_page=50`,
+      `https://recherche-entreprises.api.gouv.fr/search?q=${query}&per_page=25`,
       {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
