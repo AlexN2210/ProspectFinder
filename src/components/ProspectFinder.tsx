@@ -53,6 +53,9 @@ export default function ProspectFinder() {
   const [sortBy, setSortBy] = useState<'name' | 'ape' | 'website'>('name');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   
+  // État pour les adresses visibles
+  const [visibleAddresses, setVisibleAddresses] = useState<Set<string>>(new Set());
+  
   // État pour l'autocomplétion
   interface CitySuggestion {
     description: string;
@@ -381,6 +384,18 @@ export default function ProspectFinder() {
     setIsDialogOpen(true);
   };
 
+  const toggleAddressVisibility = (companyId: string) => {
+    setVisibleAddresses(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(companyId)) {
+        newSet.delete(companyId);
+      } else {
+        newSet.add(companyId);
+      }
+      return newSet;
+    });
+  };
+
   const getGoogleMapsUrl = (company: Company) => {
     if (company.latitude && company.longitude) {
       return `https://www.google.com/maps?q=${company.latitude},${company.longitude}`;
@@ -615,28 +630,46 @@ export default function ProspectFinder() {
                     </CardDescription>
                   </div>
                   {results.length > 0 && (
-                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                      <Button
-                        onClick={exportToCSV}
-                        variant="outline"
-                        className="border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10 hover:text-cyan-300 transition-all duration-300"
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Exporter CSV
-                      </Button>
-                    </motion.div>
+                    <div className="flex gap-2">
+                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                          onClick={() => setShowFilterPanel(!showFilterPanel)}
+                          variant={showFilterPanel ? "default" : "outline"}
+                          className={showFilterPanel 
+                            ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
+                            : "border-emerald-400/30 text-emerald-400 hover:bg-emerald-400/10 hover:text-emerald-300 transition-all duration-300"
+                          }
+                        >
+                          <Filter className="mr-2 h-4 w-4" />
+                          {showFilterPanel ? 'Masquer filtres' : 'Filtres et tri'}
+                        </Button>
+                      </motion.div>
+                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                        <Button
+                          onClick={exportToCSV}
+                          variant="outline"
+                          className="border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10 hover:text-cyan-300 transition-all duration-300"
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Exporter CSV
+                        </Button>
+                      </motion.div>
+                    </div>
                   )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Panel de filtres */}
-                {showFilterPanel && results.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="border border-slate-700 rounded-lg p-4 bg-slate-800/50"
-                  >
+                <AnimatePresence>
+                  {showFilterPanel && results.length > 0 && (
+                    <motion.div
+                      key="filter-panel"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="border border-slate-700 rounded-lg p-4 bg-slate-800/50"
+                    >
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
                         <Filter className="h-5 w-5 text-emerald-400" />
@@ -705,8 +738,9 @@ export default function ProspectFinder() {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {results.length === 0 ? (
                   <div className="text-center py-12 space-y-4">
@@ -798,7 +832,6 @@ export default function ProspectFinder() {
                             <TableHeader>
                               <TableRow className="bg-slate-800/50 hover:bg-slate-800/50">
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Nom</TableHead>
-                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden md:table-cell">Adresse</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden lg:table-cell">Téléphone</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Code APE</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Site web</TableHead>
@@ -808,60 +841,97 @@ export default function ProspectFinder() {
                             <TableBody>
                               <AnimatePresence>
                                 {filteredAndSortedResults.map((company, index) => (
-                                  <motion.tr
-                                    key={company.id}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className="bg-slate-900/30 hover:bg-slate-800/30 transition-colors duration-200"
-                                  >
-                                    <TableCell className="font-medium text-slate-100 text-xs sm:text-sm">
-                                      <div className="flex items-center gap-2">
-                                        <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
-                                        <span className="truncate">{company.name}</span>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-slate-300 text-xs sm:text-sm hidden md:table-cell">
-                                      <span className="truncate block">{company.address}, {company.postalCode} {company.city}</span>
-                                    </TableCell>
-                                    <TableCell className="text-slate-300 text-xs sm:text-sm hidden lg:table-cell">
-                                      <div className="flex items-center gap-2">
-                                        <Phone className="h-3 w-3 text-slate-500 flex-shrink-0" />
-                                        <span>{company.phone}</span>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-slate-300 text-xs sm:text-sm">
-                                      <div className="flex flex-col gap-1">
-                                        <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs w-fit">
-                                          {company.apeCode}
-                                        </Badge>
-                                        <span className="text-xs text-slate-500">{getAPELabel(company.apeCode)}</span>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-xs sm:text-sm">
-                                      {company.hasWebsite && company.site_web ? (
-                                        <span className="text-emerald-400 text-lg sm:text-xl font-bold" title={company.site_web}>
-                                          ✅
-                                        </span>
-                                      ) : (
-                                        <span className="text-rose-400 text-lg sm:text-xl font-bold">❌</span>
-                                      )}
-                                    </TableCell>
-                                    <TableCell className="text-xs sm:text-sm">
-                                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => openCompanyDetails(company)}
-                                          className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 text-xs sm:text-sm"
-                                        >
-                                          <Eye className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-2" />
-                                          <span className="hidden sm:inline">Voir fiche</span>
-                                        </Button>
-                                      </motion.div>
-                                    </TableCell>
-                                  </motion.tr>
+                                  <>
+                                    <motion.tr
+                                      key={company.id}
+                                      initial={{ opacity: 0, y: 10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      exit={{ opacity: 0 }}
+                                      transition={{ delay: index * 0.05 }}
+                                      className="bg-slate-900/30 hover:bg-slate-800/30 transition-colors duration-200"
+                                    >
+                                      <TableCell className="font-medium text-slate-100 text-xs sm:text-sm">
+                                        <div className="flex items-center gap-2">
+                                          <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-slate-500 flex-shrink-0" />
+                                          <span className="truncate">{company.name}</span>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-slate-300 text-xs sm:text-sm hidden lg:table-cell">
+                                        <div className="flex items-center gap-2">
+                                          <Phone className="h-3 w-3 text-slate-500 flex-shrink-0" />
+                                          <span>{company.phone}</span>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-slate-300 text-xs sm:text-sm">
+                                        <div className="flex flex-col gap-1">
+                                          <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs w-fit">
+                                            {company.apeCode}
+                                          </Badge>
+                                          <span className="text-xs text-slate-500">{getAPELabel(company.apeCode)}</span>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-xs sm:text-sm">
+                                        {company.hasWebsite && company.site_web ? (
+                                          <span className="text-emerald-400 text-lg sm:text-xl font-bold" title={company.site_web}>
+                                            ✅
+                                          </span>
+                                        ) : (
+                                          <span className="text-rose-400 text-lg sm:text-xl font-bold">❌</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-xs sm:text-sm">
+                                        <div className="flex items-center gap-1 sm:gap-2">
+                                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => toggleAddressVisibility(company.id)}
+                                              className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 text-xs sm:text-sm p-1 sm:p-2"
+                                              title={visibleAddresses.has(company.id) ? "Masquer l'adresse" : "Voir l'adresse"}
+                                            >
+                                              <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+                                              <span className="hidden sm:inline ml-1">
+                                                {visibleAddresses.has(company.id) ? 'Masquer' : 'Adresse'}
+                                              </span>
+                                            </Button>
+                                          </motion.div>
+                                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => openCompanyDetails(company)}
+                                              className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10 text-xs sm:text-sm p-1 sm:p-2"
+                                              title="Voir les détails"
+                                            >
+                                              <Eye className="h-3 w-3 sm:h-4 sm:w-4" />
+                                              <span className="hidden sm:inline ml-1">Fiche</span>
+                                            </Button>
+                                          </motion.div>
+                                        </div>
+                                      </TableCell>
+                                    </motion.tr>
+                                    {visibleAddresses.has(company.id) && (
+                                      <motion.tr
+                                        key={`${company.id}-address`}
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="bg-slate-800/20"
+                                      >
+                                        <TableCell colSpan={5} className="text-slate-300 text-xs sm:text-sm py-3 px-4">
+                                          <div className="flex items-start gap-2">
+                                            <MapPin className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                                            <div className="flex-1">
+                                              <span className="font-medium text-slate-200">Adresse :</span>
+                                              <span className="ml-2">
+                                                {company.address}, {company.postalCode} {company.city}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </TableCell>
+                                      </motion.tr>
+                                    )}
+                                  </>
                                 ))}
                               </AnimatePresence>
                             </TableBody>
