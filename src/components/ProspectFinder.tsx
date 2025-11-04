@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,93 @@ export default function ProspectFinder() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // État pour l'autocomplétion
+  interface CitySuggestion {
+    description: string;
+    place_id: string;
+    structured_formatting?: {
+      main_text: string;
+      secondary_text: string;
+    };
+  }
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const cityInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Fonction pour l'autocomplétion des villes
+  const fetchCitySuggestions = async (input: string) => {
+    if (input.length < 2) {
+      setCitySuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setIsLoadingSuggestions(true);
+    try {
+      const response = await fetch('/api/autocompleteCities', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCitySuggestions(data.predictions || []);
+        setShowSuggestions(true);
+      }
+    } catch (error) {
+      console.error('Error fetching city suggestions:', error);
+      setCitySuggestions([]);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  // Debounce pour l'autocomplétion
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (city) {
+        fetchCitySuggestions(city);
+      } else {
+        setCitySuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city]);
+
+  // Fermer les suggestions quand on clique ailleurs
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        cityInputRef.current &&
+        !cityInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Sélectionner une ville depuis les suggestions
+  const selectCity = (suggestion: CitySuggestion) => {
+    // Extraire juste le nom de la ville (première partie avant la virgule)
+    const cityName = suggestion.description.split(',')[0].trim();
+    setCity(cityName);
+    setShowSuggestions(false);
+    setCitySuggestions([]);
+  };
 
   // Fonction pour vérifier le site web d'une entreprise
   const checkWebsite = async (company: Company): Promise<{ hasWebsite: boolean; website?: string }> => {
@@ -108,8 +195,10 @@ export default function ProspectFinder() {
 
       const data = await response.json();
 
+      console.log('API Response:', data);
+
       if (data.error) {
-        setError(data.error);
+        setError(`Erreur: ${data.error}`);
         setIsLoading(false);
         return;
       }
@@ -125,7 +214,7 @@ export default function ProspectFinder() {
 
       // Si aucune entreprise trouvée, afficher un message
       if (filteredResults.length === 0) {
-        setError('Aucune entreprise trouvée pour ces critères');
+        setError(`Aucune entreprise trouvée pour "${city}"${apeCodeOrName ? ` avec "${apeCodeOrName}"` : ''}. Essayez avec une autre ville ou un autre critère.`);
         setIsLoading(false);
         return;
       }
@@ -270,18 +359,70 @@ export default function ProspectFinder() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
                     <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
                     Ville
                   </label>
-                  <Input
-                    placeholder="ex: Paris, Lyon, Reims..."
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all text-sm sm:text-base"
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  />
+                  <div className="relative">
+                    <Input
+                      ref={cityInputRef}
+                      placeholder="ex: Paris, Lyon, Reims..."
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      onFocus={() => citySuggestions.length > 0 && setShowSuggestions(true)}
+                      className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all text-sm sm:text-base"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (showSuggestions && citySuggestions.length > 0) {
+                            selectCity(citySuggestions[0]);
+                          } else {
+                            handleSearch();
+                          }
+                        } else if (e.key === 'Escape') {
+                          setShowSuggestions(false);
+                        }
+                      }}
+                    />
+                    {isLoadingSuggestions && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-cyan-400" />
+                    )}
+                    
+                    {/* Suggestions d'autocomplétion */}
+                    {showSuggestions && citySuggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        ref={suggestionsRef}
+                        className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+                      >
+                        {citySuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.place_id}
+                            type="button"
+                            onClick={() => selectCity(suggestion)}
+                            className="w-full text-left px-4 py-3 hover:bg-slate-700/50 transition-colors border-b border-slate-700/50 last:border-b-0"
+                            onMouseDown={(e) => e.preventDefault()}
+                          >
+                            <div className="flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-cyan-400 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-slate-100 text-sm font-medium truncate">
+                                  {suggestion.structured_formatting?.main_text || suggestion.description.split(',')[0]}
+                                </p>
+                                {suggestion.structured_formatting?.secondary_text && (
+                                  <p className="text-slate-400 text-xs truncate">
+                                    {suggestion.structured_formatting.secondary_text}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">

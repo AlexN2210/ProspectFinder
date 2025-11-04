@@ -5,6 +5,9 @@
     },
     "api/searchCompanies.ts": {
       "maxDuration": 10
+    },
+    "api/autocompleteCities.ts": {
+      "maxDuration": 5
     }
   },
   "rewrites": [
@@ -15,6 +18,10 @@
     {
       "source": "/api/searchCompanies",
       "destination": "/api/searchCompanies.ts"
+    },
+    {
+      "source": "/api/autocompleteCities",
+      "destination": "/api/autocompleteCities.ts"
     }
   ]
 }

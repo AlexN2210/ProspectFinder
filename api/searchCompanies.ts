@@ -79,62 +79,96 @@ async function searchWithPublicSireneAPI(
 ) {
   try {
     // Construire la requête de recherche
-    // L'API Recherche Entreprises utilise une syntaxe différente
+    // L'API Recherche Entreprises recherche par texte libre
     let query = city;
     
     if (apeCodeOrName) {
       // Si c'est un code APE (format: 4 chiffres + 1 lettre)
       if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-        query += ` ${apeCodeOrName.toUpperCase()}`;
+        query = `${city} ${apeCodeOrName.toUpperCase()}`;
       } else {
         // Sinon, recherche par nom
         query = `${apeCodeOrName} ${city}`;
       }
     }
 
+    console.log('Searching with query:', query);
+
     // API Recherche Entreprises (publique et gratuite)
-    const response = await fetch(
-      `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=50`,
-      {
-        headers: {
-          'Accept': 'application/json',
-        }
+    const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=50`;
+    console.log('API URL:', apiUrl);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Accept': 'application/json',
       }
-    );
+    });
+
+    console.log('Response status:', response.status);
 
     if (!response.ok) {
-      throw new Error(`Sirene API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('API Error:', errorText);
+      throw new Error(`Sirene API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
+    console.log('API Response data:', JSON.stringify(data, null, 2));
+    console.log('Results count:', data.results?.length || 0);
+
+    // Filtrer les résultats pour ne garder que ceux de la ville demandée
+    let filteredResults = (data.results || []);
+    
+    // Filtrer par ville si possible
+    if (filteredResults.length > 0) {
+      filteredResults = filteredResults.filter((result: any) => {
+        const siege = result.siege || {};
+        const ville = (siege.ville || '').toLowerCase();
+        const cityLower = city.toLowerCase();
+        return ville.includes(cityLower) || cityLower.includes(ville);
+      });
+      console.log('Filtered results count:', filteredResults.length);
+    }
 
     // Transformer les résultats en format Company
-    const companies: Company[] = (data.results || []).map((result: any, index: number) => {
+    const companies: Company[] = filteredResults.map((result: any, index: number) => {
       const siege = result.siege || {};
-      const activite = result.activite_principale || '';
+      const activite = result.activite_principale || result.activitePrincipale || '';
       
+      // Construire l'adresse complète
+      let address = '';
+      if (siege.adresse) {
+        address = siege.adresse;
+      } else if (siege.numero_voie || siege.libelle_voie) {
+        address = `${siege.numero_voie || ''} ${siege.type_voie || ''} ${siege.libelle_voie || ''}`.trim();
+      } else if (siege.adresse_complete) {
+        address = siege.adresse_complete;
+      }
+
       return {
-        id: result.siret || `etab-${index}`,
-        name: result.nom_complet || result.nom || result.denomination || 'Entreprise',
-        address: siege.adresse 
-          ? `${siege.numero_voie || ''} ${siege.type_voie || ''} ${siege.libelle_voie || ''}`.trim()
-          : siege.adresse_complete || '',
+        id: result.siret || result.siren || `etab-${index}`,
+        name: result.nom_complet || result.nom || result.denomination || result.nomComplet || 'Entreprise',
+        address: address,
         city: siege.ville || city,
-        postalCode: siege.code_postal || '',
+        postalCode: siege.code_postal || siege.codePostal || '',
         phone: result.telephone || undefined,
         email: result.email || undefined,
         apeCode: activite,
-        latitude: siege.latitude ? parseFloat(siege.latitude) : undefined,
-        longitude: siege.longitude ? parseFloat(siege.longitude) : undefined,
+        latitude: siege.latitude ? parseFloat(String(siege.latitude)) : undefined,
+        longitude: siege.longitude ? parseFloat(String(siege.longitude)) : undefined,
       };
     });
 
+    console.log(`Found ${companies.length} companies after filtering`);
     return res.status(200).json({ companies });
 
   } catch (error) {
     console.error('Error with public Sirene API:', error);
-    // En cas d'erreur, retourner un tableau vide
-    return res.status(200).json({ companies: [] });
+    // En cas d'erreur, retourner un tableau vide avec le message d'erreur
+    return res.status(200).json({ 
+      companies: [],
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 }
 
