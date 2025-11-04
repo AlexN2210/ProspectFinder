@@ -318,6 +318,12 @@ export default function ProspectFinder() {
       .filter(Boolean)
       .map(code => code.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim());
     
+    // Log pour déboguer
+    const uniqueResultCodes = [...new Set(normalizedResultCodes)];
+    if (uniqueResultCodes.length > 0) {
+      console.log('Codes APE normalisés dans les résultats:', uniqueResultCodes.slice(0, 20)); // Limiter l'affichage
+    }
+    
     APE_CATEGORIES.forEach(category => {
       const categoryCode = category.code.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
       const categoryPrefix = categoryCode.length >= 4 ? categoryCode.substring(0, 4) : categoryCode;
@@ -326,14 +332,23 @@ export default function ProspectFinder() {
       // Cela permet de montrer qu'il y a des entreprises dans ce secteur
       const matches = normalizedResultCodes.some(resultCode => {
         // Correspondance exacte
-        if (resultCode === categoryCode) return true;
+        if (resultCode === categoryCode) {
+          console.log(`✓ Catégorie disponible (exacte): ${category.label} (${category.code}) = ${resultCode}`);
+          return true;
+        }
         // Correspondance par préfixe (4 premiers caractères) pour montrer les secteurs disponibles
         if (resultCode.length >= 4 && categoryPrefix.length === 4) {
           const resultPrefix = resultCode.substring(0, 4);
-          if (resultPrefix === categoryPrefix) return true;
+          if (resultPrefix === categoryPrefix) {
+            console.log(`✓ Catégorie disponible (préfixe): ${category.label} (${category.code}, préfixe ${categoryPrefix}) = ${resultCode} (préfixe ${resultPrefix})`);
+            return true;
+          }
         }
         // Correspondance stricte : même longueur et commence par le code catégorie
-        if (resultCode.startsWith(categoryCode) && resultCode.length === categoryCode.length) return true;
+        if (resultCode.startsWith(categoryCode) && resultCode.length === categoryCode.length) {
+          console.log(`✓ Catégorie disponible (startsWith): ${category.label} (${category.code}) = ${resultCode}`);
+          return true;
+        }
         return false;
       });
       
@@ -342,6 +357,7 @@ export default function ProspectFinder() {
       }
     });
     
+    console.log(`Catégories disponibles détectées: ${Array.from(available).join(', ')}`);
     return available;
   }, [results]);
 
