@@ -765,35 +765,67 @@ export default function ProspectFinder() {
       // Étape 3 : Si toujours pas assez, essayer avec les villes principales
       if (newResults.length < quickSearchLimit) {
         const mainCities = getMainCitiesForDepartment(departmentCode);
-        console.log(`Trying with cities: ${mainCities.join(', ')}...`);
+        console.log(`=== ÉTAPE 3: Recherche par villes principales ===`);
+        console.log(`Villes à rechercher: ${mainCities.join(', ')}`);
         
         for (const city of mainCities) {
-          if (newResults.length >= quickSearchLimit) break;
+          if (newResults.length >= quickSearchLimit) {
+            console.log(`[ÉTAPE 3] Limite atteinte (${newResults.length}), arrêt de la recherche`);
+            break;
+          }
           
+          console.log(`[ÉTAPE 3] Recherche dans ${city}...`);
           let currentPage = 1;
-          const maxPages = 2; // 2 pages par ville (50 résultats max par ville)
+          const maxPages = 3; // 3 pages par ville (75 résultats max par ville)
+          let foundInCity = 0;
           
           while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
             try {
+              const requestBody = {
+                city: city,
+                departmentCode: departmentCode,
+                apeCodeOrName: quickSearchSector,
+                page: currentPage,
+                limit: 25,
+              };
+              
+              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Envoi requête:`, JSON.stringify(requestBody));
+              
               const response = await fetch('/api/searchCompanies', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                  city: city,
-                  departmentCode: departmentCode,
-                  apeCodeOrName: quickSearchSector,
-                  page: currentPage,
-                  limit: 25,
-                }),
+                body: JSON.stringify(requestBody),
               });
 
-              if (!response.ok) break;
+              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Status HTTP:`, response.status);
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`[ÉTAPE 3] ${city} - Page ${currentPage}: Erreur HTTP:`, errorText);
+                break;
+              }
 
               const data = await response.json();
+              
+              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Réponse:`, {
+                error: data.error,
+                companiesCount: data.companies?.length || 0,
+                companies: data.companies?.slice(0, 2).map((c: any) => ({
+                  name: c.name,
+                  city: c.city,
+                  postalCode: c.postalCode
+                })) || []
+              });
 
-              if (data.error || !data.companies || data.companies.length === 0) {
+              if (data.error) {
+                console.error(`[ÉTAPE 3] ${city} - Page ${currentPage}: Erreur:`, data.error);
+                break;
+              }
+
+              if (!data.companies || data.companies.length === 0) {
+                console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Aucun résultat`);
                 break;
               }
 
@@ -808,21 +840,27 @@ export default function ProspectFinder() {
                 !newResults.some(r => r.id === company.id)
               );
 
+              foundInCity += uniqueResults.length;
               newResults = [...newResults, ...uniqueResults];
               
+              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: ${uniqueResults.length} nouvelles entreprises (${foundInCity} au total pour ${city})`);
+              
               if (data.companies.length < 25) {
+                console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Dernière page`);
                 break;
               }
               
               currentPage++;
             } catch (error) {
-              console.warn(`Error searching in ${city}:`, error);
+              console.error(`[ÉTAPE 3] ${city} - Page ${currentPage}: Erreur exception:`, error);
               break;
             }
           }
+          
+          console.log(`[ÉTAPE 3] ${city}: ${foundInCity} entreprises trouvées`);
         }
         
-        console.log(`Total found after all searches: ${newResults.length} companies`);
+        console.log(`[ÉTAPE 3] RÉSUMÉ: ${newResults.length} entreprises trouvées au total après recherche par villes`);
       }
 
       // Limiter le nombre de résultats

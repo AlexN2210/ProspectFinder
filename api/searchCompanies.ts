@@ -105,16 +105,22 @@ async function searchWithPublicSireneAPI(
         query = city;
       }
     } else if (departmentCode) {
-      // Si on a seulement un département (sans ville), chercher par code APE uniquement
+      // Si on a seulement un département (sans ville), l'API Recherche Entreprises ne fonctionne pas bien
+      // On doit utiliser une approche différente : chercher par code APE uniquement
+      // et laisser le frontend gérer la recherche par villes
       const normalizedDeptCode = departmentCode.padStart(2, '0');
       console.log(`[API] Département normalisé: ${normalizedDeptCode}`);
+      console.log(`[API] ATTENTION: Recherche par département seul - l'API Recherche Entreprises peut ne pas retourner de résultats`);
+      console.log(`[API] Suggestion: Utiliser une ville ou l'API Sirene v3.11 avec clé API`);
       
       if (apeCodeOrName) {
         // Si c'est un code APE (format: 4 chiffres + 1 lettre)
         if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
           // Rechercher par code APE uniquement (on filtrera par département après)
+          // Mais l'API Recherche Entreprises ne fonctionne pas bien avec juste un code APE
           query = apeCodeOrName.toUpperCase();
           console.log(`[API] Code APE détecté (format complet): ${query}`);
+          console.log(`[API] ⚠️ L'API Recherche Entreprises peut ne pas retourner de résultats avec juste un code APE`);
         } else if (/^\d{4}$/.test(apeCodeOrName)) {
           // Si c'est un code APE sans la lettre (4 chiffres), chercher par ce code
           query = apeCodeOrName;
@@ -168,8 +174,20 @@ async function searchWithPublicSireneAPI(
     const data = await response.json();
     console.log(`[API] Résultats bruts reçus: ${data.results?.length || 0} entreprises`);
     
-    // Log des premiers résultats pour debug
-    if (data.results && data.results.length > 0) {
+    // Si aucun résultat, logger plus d'infos
+    if (!data.results || data.results.length === 0) {
+      console.log(`[API] ⚠️ AUCUN RÉSULTAT de l'API Recherche Entreprises`);
+      console.log(`[API] Requête utilisée: "${query}"`);
+      console.log(`[API] URL appelée: ${apiUrl}`);
+      console.log(`[API] Réponse complète:`, JSON.stringify(data).substring(0, 500));
+      
+      // Si on cherche par département seul, c'est normal que ça ne fonctionne pas
+      if (departmentCode && !city) {
+        console.log(`[API] 💡 PROBLÈME IDENTIFIÉ: L'API Recherche Entreprises ne fonctionne pas bien avec département seul + code APE`);
+        console.log(`[API] 💡 SOLUTION: Le frontend doit rechercher par villes du département`);
+      }
+    } else {
+      // Log des premiers résultats pour debug
       console.log('[API] Exemples de résultats bruts (3 premiers):', 
         data.results.slice(0, 3).map((r: any) => ({
           nom: r.nom_complet || r.nom || r.denomination,
