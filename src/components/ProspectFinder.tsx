@@ -58,8 +58,6 @@ export default function ProspectFinder() {
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
   const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
-  const [isAnalyzingWebsite, setIsAnalyzingWebsite] = useState<string | null>(null);
-  const [isFindingEmail, setIsFindingEmail] = useState<string | null>(null);
   const [emailCopied, setEmailCopied] = useState(false);
   
   // État pour la pagination
@@ -202,7 +200,6 @@ export default function ProspectFinder() {
   // Fonction pour analyser la qualité d'un site web
   const analyzeWebsite = async (website: string, companyName: string): Promise<WebsiteAnalysis | null> => {
     try {
-      setIsAnalyzingWebsite(companyName);
       const response = await fetch('/api/analyzeWebsite', {
         method: 'POST',
         headers: {
@@ -223,15 +220,12 @@ export default function ProspectFinder() {
     } catch (error) {
       console.error('Error analyzing website:', error);
       return null;
-    } finally {
-      setIsAnalyzingWebsite(null);
     }
   };
 
   // Fonction pour trouver l'email d'une entreprise
   const findEmail = async (company: Company): Promise<{ email: string; source: 'website' | 'guessed' | 'api' } | null> => {
     try {
-      setIsFindingEmail(company.id);
       const response = await fetch('/api/findEmail', {
         method: 'POST',
         headers: {
@@ -260,8 +254,6 @@ export default function ProspectFinder() {
     } catch (error) {
       console.error('Error finding email:', error);
       return null;
-    } finally {
-      setIsFindingEmail(null);
     }
   };
 
