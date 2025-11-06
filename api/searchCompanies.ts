@@ -35,7 +35,7 @@ interface ResponseData {
  */
 export default async function handler(
   req: VercelRequest,
-  res: VercelResponse<ResponseData>
+  res: VercelResponse
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ 
@@ -84,15 +84,12 @@ async function searchWithPublicSireneAPI(
   apeCodeOrName: string | undefined,
   page: number,
   limit: number | undefined,
-  res: VercelResponse<ResponseData>
+  res: VercelResponse
 ) {
   try {
     // Construire la requête de recherche
-    // L'API Recherche Entreprises recherche par texte libre
     let query = '';
     
-    // Si on a une ville ET un département, on cherche par ville + code APE (plus efficace)
-    // Sinon, si on a seulement un département, on cherche par code APE uniquement
     if (city && city.trim()) {
       // Recherche par ville (priorité si ville fournie)
       if (apeCodeOrName) {
@@ -111,31 +108,23 @@ async function searchWithPublicSireneAPI(
       if (apeCodeOrName) {
         // Si c'est un code APE (format: 4 chiffres + 1 lettre)
         if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-          // Rechercher uniquement par code APE (on filtrera par département après)
           query = apeCodeOrName.toUpperCase();
         } else {
-          // Recherche par nom du secteur uniquement
           query = apeCodeOrName;
         }
       } else {
-        // Si pas de code APE mais un département, on ne peut pas faire une recherche efficace
-        // On cherchera par code postal mais ça ne fonctionnera pas bien
         query = `${normalizedDeptCode}000`;
       }
     } else if (apeCodeOrName) {
       // Si c'est un code APE (format: 4 chiffres + 1 lettre)
       if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-        // Si on a une ville, l'inclure, sinon chercher uniquement par code APE
         query = city ? `${city} ${apeCodeOrName.toUpperCase()}` : apeCodeOrName.toUpperCase();
       } else {
-        // Sinon, recherche par nom
         query = city ? `${apeCodeOrName} ${city}` : apeCodeOrName;
       }
     } else if (city) {
-      // Si pas de code APE mais une ville
       query = city;
     } else {
-      // Si ni ville ni code APE ni département, retourner vide
       return res.status(400).json({
         companies: [],
         error: 'City, departmentCode or apeCodeOrName is required'
@@ -145,7 +134,6 @@ async function searchWithPublicSireneAPI(
     console.log(`Searching with query: ${query}, page: ${page}, departmentCode: ${departmentCode}`);
 
     // API Recherche Entreprises (publique et gratuite)
-    // per_page doit être entre 1 et 25 (par défaut 10)
     const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25&page=${page}`;
     console.log('API URL:', apiUrl);
 
@@ -178,17 +166,16 @@ async function searchWithPublicSireneAPI(
         if (!postalCode) return false;
         
         // Vérifier si le code postal commence par le code du département
-        // Support pour les codes postaux à 2 chiffres (02) et à 3 chiffres (020)
         const postalCodeStart = postalCode.substring(0, 2);
         const postalCodeStart3 = postalCode.substring(0, 3);
         return postalCodeStart === normalizedDeptCode || 
                postalCodeStart3 === normalizedDeptCode + '0' ||
                postalCode.startsWith(normalizedDeptCode);
       });
-      console.log(`Filtered by department ${normalizedDeptCode}, results count: ${filteredResults.length} (from ${data.results?.length || 0} total)`);
+      console.log(`Filtered by department ${normalizedDeptCode}, results count: ${filteredResults.length}`);
     }
     
-    // Filtrer aussi par ville si une ville a été spécifiée (en plus du département)
+    // Filtrer aussi par ville si une ville a été spécifiée
     if (city && city.trim() && filteredResults.length > 0) {
       const beforeCityFilter = filteredResults.length;
       filteredResults = filteredResults.filter((result: any) => {
@@ -223,7 +210,7 @@ async function searchWithPublicSireneAPI(
         id: result.siret || result.siren || `etab-${index}`,
         name: result.nom_complet || result.nom || result.denomination || result.nomComplet || 'Entreprise',
         address: address,
-        city: siege.ville || city,
+        city: siege.ville || city || '',
         postalCode: siege.code_postal || siege.codePostal || '',
         phone: result.telephone || undefined,
         email: result.email || undefined,
@@ -238,7 +225,7 @@ async function searchWithPublicSireneAPI(
       companies = companies.slice(0, limit);
     }
 
-    // Vérifier s'il y a une page suivante (si on a 25 résultats et pas de limit, il y a probablement une page suivante)
+    // Vérifier s'il y a une page suivante
     const hasMore = !limit && filteredResults.length === 25;
 
     console.log(`Found ${companies.length} companies on page ${page}, hasMore: ${hasMore}`);
@@ -250,7 +237,6 @@ async function searchWithPublicSireneAPI(
 
   } catch (error) {
     console.error('Error with public Sirene API:', error);
-    // En cas d'erreur, retourner un tableau vide avec le message d'erreur
     return res.status(200).json({ 
       companies: [],
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -268,7 +254,7 @@ async function searchWithSireneAPI(
   page: number,
   limit: number | undefined,
   apiKey: string,
-  res: VercelResponse<ResponseData>
+  res: VercelResponse
 ) {
   try {
     // Construire la requête
@@ -276,7 +262,6 @@ async function searchWithSireneAPI(
     
     if (departmentCode) {
       const normalizedDeptCode = departmentCode.padStart(2, '0');
-      // Rechercher par code postal du département
       query = `codePostalEtablissement:${normalizedDeptCode}*`;
     } else if (city) {
       query = `codeCommuneEtablissement:${encodeURIComponent(city)}`;
@@ -310,7 +295,7 @@ async function searchWithSireneAPI(
       id: etab.siret || `etab-${index}`,
       name: etab.nom || etab.denomination || 'Entreprise',
       address: etab.siege?.adresse || '',
-      city: etab.siege?.ville || city,
+      city: etab.siege?.ville || city || '',
       postalCode: etab.siege?.code_postal || '',
       phone: etab.telephone || undefined,
       email: etab.email || undefined,
@@ -338,4 +323,3 @@ async function searchWithSireneAPI(
     return res.status(200).json({ companies: [] });
   }
 }
-
