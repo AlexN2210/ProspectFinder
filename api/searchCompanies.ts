@@ -91,9 +91,21 @@ async function searchWithPublicSireneAPI(
     // L'API Recherche Entreprises recherche par texte libre
     let query = '';
     
-    // Si on a un code département, on cherche d'abord par code APE uniquement
-    // puis on filtre par département (plus efficace avec l'API Recherche Entreprises)
-    if (departmentCode) {
+    // Si on a une ville ET un département, on cherche par ville + code APE (plus efficace)
+    // Sinon, si on a seulement un département, on cherche par code APE uniquement
+    if (city && city.trim()) {
+      // Recherche par ville (priorité si ville fournie)
+      if (apeCodeOrName) {
+        if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
+          query = `${city} ${apeCodeOrName.toUpperCase()}`;
+        } else {
+          query = `${apeCodeOrName} ${city}`;
+        }
+      } else {
+        query = city;
+      }
+    } else if (departmentCode) {
+      // Si on a seulement un département (sans ville), chercher par code APE uniquement
       const normalizedDeptCode = departmentCode.padStart(2, '0');
       
       if (apeCodeOrName) {
@@ -175,16 +187,20 @@ async function searchWithPublicSireneAPI(
       });
       console.log(`Filtered by department ${normalizedDeptCode}, results count: ${filteredResults.length} (from ${data.results?.length || 0} total)`);
     }
-    // Filtrer par ville si une ville a été spécifiée (et pas de département)
-    else if (city && city.trim() && filteredResults.length > 0) {
+    
+    // Filtrer aussi par ville si une ville a été spécifiée (en plus du département)
+    if (city && city.trim() && filteredResults.length > 0) {
+      const beforeCityFilter = filteredResults.length;
       filteredResults = filteredResults.filter((result: any) => {
         const siege = result.siege || {};
         const ville = (siege.ville || '').toLowerCase();
         const cityLower = city.toLowerCase();
         return ville.includes(cityLower) || cityLower.includes(ville);
       });
-      console.log('Filtered results count:', filteredResults.length);
-    } else {
+      console.log(`Filtered by city ${city}, results count: ${filteredResults.length} (from ${beforeCityFilter} total)`);
+    }
+    
+    if (!departmentCode && !city) {
       console.log('No filter applied, using all results');
     }
 

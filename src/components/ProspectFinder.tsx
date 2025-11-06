@@ -15,6 +15,109 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import { APE_CATEGORIES, getAPELabel } from '@/data/apeCategories';
 import { DEPARTMENTS } from '@/data/departments';
 
+// Fonction pour obtenir les villes principales d'un département
+function getMainCitiesForDepartment(departmentCode: string): string[] {
+  const citiesByDepartment: Record<string, string[]> = {
+    '01': ['Bourg-en-Bresse', 'Oyonnax', 'Belley', 'Ambérieu-en-Bugey'],
+    '02': ['Laon', 'Saint-Quentin', 'Soissons', 'Château-Thierry', 'Tergnier'],
+    '03': ['Moulins', 'Montluçon', 'Vichy', 'Yzeure'],
+    '04': ['Digne-les-Bains', 'Manosque', 'Sisteron', 'Château-Arnoux-Saint-Auban'],
+    '05': ['Gap', 'Briançon', 'Embrun', 'Sisteron'],
+    '06': ['Nice', 'Cannes', 'Antibes', 'Grasse', 'Menton'],
+    '07': ['Privas', 'Aubenas', 'Annonay', 'Tournon-sur-Rhône', 'Valence', 'Le Teil', 'Largentière'],
+    '08': ['Charleville-Mézières', 'Sedan', 'Rethel', 'Givet'],
+    '09': ['Foix', 'Pamiers', 'Saint-Girons', 'Mirepoix'],
+    '10': ['Troyes', 'Romilly-sur-Seine', 'Nogent-sur-Seine', 'Bar-sur-Aube'],
+    '11': ['Carcassonne', 'Narbonne', 'Castelnaudary', 'Limoux'],
+    '12': ['Rodez', 'Millau', 'Villefranche-de-Rouergue', 'Decazeville'],
+    '13': ['Marseille', 'Aix-en-Provence', 'Arles', 'Aubagne', 'Martigues'],
+    '14': ['Caen', 'Lisieux', 'Vire', 'Bayeux'],
+    '15': ['Aurillac', 'Saint-Flour', 'Mauriac', 'Ytrac'],
+    '16': ['Angoulême', 'Cognac', 'Ruffec', 'Confolens'],
+    '17': ['La Rochelle', 'Rochefort', 'Saintes', 'Royan'],
+    '18': ['Bourges', 'Vierzon', 'Aubigny-sur-Nère', 'Saint-Amand-Montrond'],
+    '19': ['Tulle', 'Brive-la-Gaillarde', 'Ussel', 'Malemort'],
+    '21': ['Dijon', 'Beaune', 'Montbard', 'Chenôve'],
+    '22': ['Saint-Brieuc', 'Lannion', 'Dinan', 'Guingamp'],
+    '23': ['Guéret', 'Aubusson', 'La Souterraine', 'Bourganeuf'],
+    '24': ['Périgueux', 'Bergerac', 'Sarlat-la-Canéda', 'Nontron'],
+    '25': ['Besançon', 'Montbéliard', 'Pontarlier', 'Audincourt'],
+    '26': ['Valence', 'Romans-sur-Isère', 'Montélimar', 'Die'],
+    '27': ['Évreux', 'Vernon', 'Les Andelys', 'Louviers'],
+    '28': ['Chartres', 'Dreux', 'Nogent-le-Rotrou', 'Châteaudun'],
+    '29': ['Quimper', 'Brest', 'Morlaix', 'Concarneau'],
+    '2A': ['Ajaccio', 'Porto-Vecchio', 'Bastia', 'Propriano'],
+    '2B': ['Bastia', 'Calvi', 'Corte', 'Porto-Vecchio'],
+    '30': ['Nîmes', 'Alès', 'Uzès', 'Bagnols-sur-Cèze'],
+    '31': ['Toulouse', 'Colomiers', 'Muret', 'Blagnac'],
+    '32': ['Auch', 'Condom', 'Mirande', 'Lectoure'],
+    '33': ['Bordeaux', 'Mérignac', 'Pessac', 'Talence'],
+    '34': ['Montpellier', 'Béziers', 'Sète', 'Lunel'],
+    '35': ['Rennes', 'Saint-Malo', 'Fougères', 'Vitré'],
+    '36': ['Châteauroux', 'Issoudun', 'Le Blanc', 'La Châtre'],
+    '37': ['Tours', 'Joué-lès-Tours', 'Amboise', 'Chinon'],
+    '38': ['Grenoble', 'Valence', 'Vienne', 'Saint-Martin-d\'Hères'],
+    '39': ['Lons-le-Saunier', 'Dole', 'Saint-Claude', 'Morez'],
+    '40': ['Mont-de-Marsan', 'Dax', 'Saint-Sever', 'Aire-sur-l\'Adour'],
+    '41': ['Blois', 'Vendôme', 'Romorantin-Lanthenay', 'Salbris'],
+    '42': ['Saint-Étienne', 'Roanne', 'Montbrison', 'Firminy'],
+    '43': ['Le Puy-en-Velay', 'Yssingeaux', 'Brioude', 'Monistrol-sur-Loire'],
+    '44': ['Nantes', 'Saint-Nazaire', 'La Baule', 'Rezé'],
+    '45': ['Orléans', 'Montargis', 'Pithiviers', 'Gien'],
+    '46': ['Cahors', 'Figeac', 'Gourdon', 'Souillac'],
+    '47': ['Agen', 'Marmande', 'Villeneuve-sur-Lot', 'Nérac'],
+    '48': ['Mende', 'Florac', 'Marvejols', 'Langogne'],
+    '49': ['Angers', 'Cholet', 'Saumur', 'Trélazé'],
+    '50': ['Saint-Lô', 'Cherbourg', 'Coutances', 'Avranches'],
+    '51': ['Reims', 'Châlons-en-Champagne', 'Épernay', 'Vitry-le-François'],
+    '52': ['Chaumont', 'Saint-Dizier', 'Langres', 'Joinville'],
+    '53': ['Laval', 'Mayenne', 'Château-Gontier', 'Ernée'],
+    '54': ['Nancy', 'Lunéville', 'Toul', 'Longwy'],
+    '55': ['Bar-le-Duc', 'Verdun', 'Commercy', 'Ligny-en-Barrois'],
+    '56': ['Vannes', 'Lorient', 'Pontivy', 'Auray'],
+    '57': ['Metz', 'Thionville', 'Sarreguemines', 'Forbach'],
+    '58': ['Nevers', 'Cosne-Cours-sur-Loire', 'Clamecy', 'Decize'],
+    '59': ['Lille', 'Roubaix', 'Tourcoing', 'Dunkirk'],
+    '60': ['Beauvais', 'Compiègne', 'Clermont', 'Creil'],
+    '61': ['Alençon', 'Flers', 'Argentan', 'Sées'],
+    '62': ['Arras', 'Calais', 'Boulogne-sur-Mer', 'Lens'],
+    '63': ['Clermont-Ferrand', 'Riom', 'Thiers', 'Cournon-d\'Auvergne'],
+    '64': ['Pau', 'Bayonne', 'Oloron-Sainte-Marie', 'Anglet'],
+    '65': ['Tarbes', 'Lourdes', 'Bagnères-de-Bigorre', 'Vic-en-Bigorre'],
+    '67': ['Strasbourg', 'Mulhouse', 'Colmar', 'Haguenau'],
+    '68': ['Colmar', 'Mulhouse', 'Thann', 'Guebwiller'],
+    '69': ['Lyon', 'Villeurbanne', 'Vénissieux', 'Saint-Étienne'],
+    '70': ['Vesoul', 'Lure', 'Gray', 'Héricourt'],
+    '71': ['Mâcon', 'Chalon-sur-Saône', 'Autun', 'Le Creusot'],
+    '72': ['Le Mans', 'La Flèche', 'Sablé-sur-Sarthe', 'Mamers'],
+    '73': ['Chambéry', 'Albertville', 'Aix-les-Bains', 'Saint-Jean-de-Maurienne'],
+    '74': ['Annecy', 'Thonon-les-Bains', 'Cluses', 'Annemasse'],
+    '75': ['Paris'],
+    '76': ['Rouen', 'Le Havre', 'Dieppe', 'Sotteville-lès-Rouen'],
+    '77': ['Melun', 'Meaux', 'Fontainebleau', 'Provins'],
+    '78': ['Versailles', 'Rambouillet', 'Mantes-la-Jolie', 'Sartrouville'],
+    '79': ['Niort', 'Bressuire', 'Parthenay', 'Thouars'],
+    '80': ['Amiens', 'Abbeville', 'Péronne', 'Albert'],
+    '81': ['Albi', 'Castres', 'Mazamet', 'Gaillac'],
+    '82': ['Montauban', 'Castelsarrasin', 'Moissac', 'Caussade'],
+    '83': ['Toulon', 'Draguignan', 'Fréjus', 'Hyères'],
+    '84': ['Avignon', 'Carpentras', 'Orange', 'Cavaillon'],
+    '85': ['La Roche-sur-Yon', 'Les Sables-d\'Olonne', 'Fontenay-le-Comte', 'Challans'],
+    '86': ['Poitiers', 'Châtellerault', 'Montmorillon', 'Loudun'],
+    '87': ['Limoges', 'Saint-Junien', 'Bellac', 'Rochechouart'],
+    '88': ['Épinal', 'Saint-Dié-des-Vosges', 'Remiremont', 'Neufchâteau'],
+    '89': ['Auxerre', 'Sens', 'Avallon', 'Tonnerre'],
+    '90': ['Belfort', 'Montbéliard', 'Delle', 'Valdoie'],
+    '91': ['Évry', 'Corbeil-Essonnes', 'Palaiseau', 'Massy'],
+    '92': ['Nanterre', 'Boulogne-Billancourt', 'Courbevoie', 'Asnières-sur-Seine'],
+    '93': ['Bobigny', 'Saint-Denis', 'Aubervilliers', 'Montreuil'],
+    '94': ['Créteil', 'Nogent-sur-Marne', 'Vincennes', 'Champigny-sur-Marne'],
+    '95': ['Pontoise', 'Argenteuil', 'Sarcelles', 'Cergy'],
+  };
+
+  return citiesByDepartment[departmentCode] || [];
+}
+
 interface WebsiteAnalysis {
   exists: boolean;
   quality: 'excellent' | 'good' | 'poor' | 'none';
@@ -512,73 +615,80 @@ export default function ProspectFinder() {
       const department = DEPARTMENTS.find(d => d.code === quickSearchDepartment);
       const departmentCode = quickSearchDepartment;
       
-      // Rechercher directement par département et code APE
-      // Essayer plusieurs pages si nécessaire pour avoir assez de résultats
-      let newResults: Company[] = [];
-      let currentPage = 1;
-      const maxPages = 10; // Essayer jusqu'à 10 pages (250 résultats max) pour avoir assez après filtrage
-      let consecutiveEmptyPages = 0;
+      // Obtenir les villes principales du département
+      const mainCities = getMainCitiesForDepartment(departmentCode);
       
-      while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
-        const response = await fetch('/api/searchCompanies', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            departmentCode: departmentCode, // Rechercher directement par département
-            apeCodeOrName: quickSearchSector,
-            page: currentPage,
-            limit: 25, // 25 résultats par page
-          }),
-        });
-
-        if (!response.ok) {
-          console.warn(`Page ${currentPage} returned error status ${response.status}`);
-          consecutiveEmptyPages++;
-          if (consecutiveEmptyPages >= 2) break; // Arrêter après 2 pages vides consécutives
-          currentPage++;
-          continue;
-        }
-
-        const data = await response.json();
-
-        if (data.error) {
-          console.warn(`Page ${currentPage} error:`, data.error);
-          consecutiveEmptyPages++;
-          if (consecutiveEmptyPages >= 2) break;
-          currentPage++;
-          continue;
-        }
-
-        if (!data.companies || data.companies.length === 0) {
-          consecutiveEmptyPages++;
-          if (consecutiveEmptyPages >= 2) break; // Arrêter après 2 pages vides consécutives
-          currentPage++;
-          continue;
-        }
-
-        // Réinitialiser le compteur si on a des résultats
-        consecutiveEmptyPages = 0;
-
-        // Transformer les résultats
-        const pageResults: Company[] = data.companies.map((company: any) => ({
-          ...company,
-          hasWebsite: false,
-          site_web: '',
-        }));
-
-        newResults = [...newResults, ...pageResults];
+      // Rechercher dans chaque ville principale du département
+      let newResults: Company[] = [];
+      
+      for (const city of mainCities) {
+        if (newResults.length >= quickSearchLimit) break;
         
-        // Si on a moins de 25 résultats, c'est probablement la dernière page
-        if (data.companies.length < 25) {
-          break;
-        }
+        let currentPage = 1;
+        const maxPages = 3; // 3 pages par ville (75 résultats max par ville)
+        let consecutiveEmptyPages = 0;
         
-        currentPage++;
+        while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
+          try {
+            const response = await fetch('/api/searchCompanies', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                city: city, // Rechercher par ville
+                departmentCode: departmentCode, // Filtrer par département
+                apeCodeOrName: quickSearchSector,
+                page: currentPage,
+                limit: 25,
+              }),
+            });
+
+            if (!response.ok) {
+              consecutiveEmptyPages++;
+              if (consecutiveEmptyPages >= 2) break;
+              currentPage++;
+              continue;
+            }
+
+            const data = await response.json();
+
+            if (data.error || !data.companies || data.companies.length === 0) {
+              consecutiveEmptyPages++;
+              if (consecutiveEmptyPages >= 2) break;
+              currentPage++;
+              continue;
+            }
+
+            consecutiveEmptyPages = 0;
+
+            // Transformer les résultats
+            const pageResults: Company[] = data.companies.map((company: any) => ({
+              ...company,
+              hasWebsite: false,
+              site_web: '',
+            }));
+
+            // Ajouter seulement les résultats uniques (éviter les doublons)
+            const uniqueResults = pageResults.filter(company => 
+              !newResults.some(r => r.id === company.id)
+            );
+
+            newResults = [...newResults, ...uniqueResults];
+            
+            if (data.companies.length < 25) {
+              break; // Dernière page pour cette ville
+            }
+            
+            currentPage++;
+          } catch (error) {
+            console.warn(`Error searching in ${city}:`, error);
+            break; // Passer à la ville suivante en cas d'erreur
+          }
+        }
       }
 
-      console.log(`Found ${newResults.length} companies after searching ${currentPage - 1} pages`);
+      console.log(`Found ${newResults.length} companies after searching in ${mainCities.length} cities`);
 
       // Limiter le nombre de résultats
       newResults = newResults.slice(0, quickSearchLimit);
