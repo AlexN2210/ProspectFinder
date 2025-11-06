@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X, Copy, CheckCircle2, AlertCircle, Sparkles, Send, SendCheck } from 'lucide-react';
+import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X, Copy, CheckCircle2, AlertCircle, Sparkles, Send, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +64,6 @@ export default function ProspectFinder() {
   // État pour la recherche rapide automatique
   const [quickSearchDepartment, setQuickSearchDepartment] = useState<string>('');
   const [quickSearchSector, setQuickSearchSector] = useState<string>('');
-  const [quickSearchSize, setQuickSearchSize] = useState<'small' | 'medium' | 'large' | 'all'>('all');
   const [quickSearchLimit, setQuickSearchLimit] = useState<number>(10);
   const [isQuickSearching, setIsQuickSearching] = useState(false);
   const [showQuickSearch, setShowQuickSearch] = useState(false);
@@ -1167,6 +1166,7 @@ export default function ProspectFinder() {
             </CardContent>
           </Card>
         </motion.div>
+        )}
 
         <AnimatePresence>
           {isLoading && (
@@ -1425,7 +1425,7 @@ export default function ProspectFinder() {
                         <CardContent className="pt-4 sm:pt-6">
                           <div className="text-center space-y-2">
                             <p className="text-slate-400 text-xs sm:text-sm flex items-center justify-center gap-1">
-                              <SendCheck className="h-3 w-3" />
+                              <CheckCircle className="h-3 w-3" />
                               Emails envoyés
                             </p>
                             <p className="text-2xl sm:text-3xl font-bold text-purple-400">
@@ -1611,7 +1611,7 @@ export default function ProspectFinder() {
                                             title={emailsSent.has(company.id) ? "Email envoyé - Cliquer pour retirer" : "Marquer comme email envoyé"}
                                           >
                                             {emailsSent.has(company.id) ? (
-                                              <SendCheck className="h-4 w-4 sm:h-5 sm:w-5" />
+                                              <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                                             ) : (
                                               <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                                             )}
@@ -1908,7 +1908,7 @@ export default function ProspectFinder() {
                         >
                           {emailsSent.has(selectedCompany.id) ? (
                             <>
-                              <SendCheck className="mr-2 h-4 w-4" />
+                              <CheckCircle className="mr-2 h-4 w-4" />
                               Email envoyé
                             </>
                           ) : (
