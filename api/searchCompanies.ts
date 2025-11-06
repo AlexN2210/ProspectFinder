@@ -91,22 +91,23 @@ async function searchWithPublicSireneAPI(
     // L'API Recherche Entreprises recherche par texte libre
     let query = '';
     
-    // Si on a un code département, rechercher par code postal
+    // Si on a un code département, on cherche d'abord par code APE uniquement
+    // puis on filtre par département (plus efficace avec l'API Recherche Entreprises)
     if (departmentCode) {
       const normalizedDeptCode = departmentCode.padStart(2, '0');
       
       if (apeCodeOrName) {
         // Si c'est un code APE (format: 4 chiffres + 1 lettre)
         if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-          // Rechercher par code APE et code postal du département
-          // On utilise le code postal comme critère (ex: 02xxx pour l'Aisne)
-          query = `${apeCodeOrName.toUpperCase()} ${normalizedDeptCode}000`;
+          // Rechercher uniquement par code APE (on filtrera par département après)
+          query = apeCodeOrName.toUpperCase();
         } else {
-          // Recherche par nom et département
-          query = `${apeCodeOrName} ${normalizedDeptCode}000`;
+          // Recherche par nom du secteur uniquement
+          query = apeCodeOrName;
         }
       } else {
-        // Recherche uniquement par département (code postal)
+        // Si pas de code APE mais un département, on ne peut pas faire une recherche efficace
+        // On cherchera par code postal mais ça ne fonctionnera pas bien
         query = `${normalizedDeptCode}000`;
       }
     } else if (apeCodeOrName) {
@@ -165,11 +166,14 @@ async function searchWithPublicSireneAPI(
         if (!postalCode) return false;
         
         // Vérifier si le code postal commence par le code du département
-        return postalCode.startsWith(normalizedDeptCode) || 
-               postalCode.startsWith('0' + normalizedDeptCode) ||
-               (postalCode.length >= 2 && postalCode.substring(0, 2) === normalizedDeptCode);
+        // Support pour les codes postaux à 2 chiffres (02) et à 3 chiffres (020)
+        const postalCodeStart = postalCode.substring(0, 2);
+        const postalCodeStart3 = postalCode.substring(0, 3);
+        return postalCodeStart === normalizedDeptCode || 
+               postalCodeStart3 === normalizedDeptCode + '0' ||
+               postalCode.startsWith(normalizedDeptCode);
       });
-      console.log(`Filtered by department ${normalizedDeptCode}, results count:`, filteredResults.length);
+      console.log(`Filtered by department ${normalizedDeptCode}, results count: ${filteredResults.length} (from ${data.results?.length || 0} total)`);
     }
     // Filtrer par ville si une ville a été spécifiée (et pas de département)
     else if (city && city.trim() && filteredResults.length > 0) {

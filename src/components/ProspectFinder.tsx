@@ -516,7 +516,8 @@ export default function ProspectFinder() {
       // Essayer plusieurs pages si nécessaire pour avoir assez de résultats
       let newResults: Company[] = [];
       let currentPage = 1;
-      const maxPages = 4; // Essayer jusqu'à 4 pages (100 résultats max)
+      const maxPages = 10; // Essayer jusqu'à 10 pages (250 résultats max) pour avoir assez après filtrage
+      let consecutiveEmptyPages = 0;
       
       while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
         const response = await fetch('/api/searchCompanies', {
@@ -533,14 +534,32 @@ export default function ProspectFinder() {
         });
 
         if (!response.ok) {
-          break; // Arrêter si erreur
+          console.warn(`Page ${currentPage} returned error status ${response.status}`);
+          consecutiveEmptyPages++;
+          if (consecutiveEmptyPages >= 2) break; // Arrêter après 2 pages vides consécutives
+          currentPage++;
+          continue;
         }
 
         const data = await response.json();
 
-        if (data.error || !data.companies || data.companies.length === 0) {
-          break; // Plus de résultats
+        if (data.error) {
+          console.warn(`Page ${currentPage} error:`, data.error);
+          consecutiveEmptyPages++;
+          if (consecutiveEmptyPages >= 2) break;
+          currentPage++;
+          continue;
         }
+
+        if (!data.companies || data.companies.length === 0) {
+          consecutiveEmptyPages++;
+          if (consecutiveEmptyPages >= 2) break; // Arrêter après 2 pages vides consécutives
+          currentPage++;
+          continue;
+        }
+
+        // Réinitialiser le compteur si on a des résultats
+        consecutiveEmptyPages = 0;
 
         // Transformer les résultats
         const pageResults: Company[] = data.companies.map((company: any) => ({
@@ -551,13 +570,15 @@ export default function ProspectFinder() {
 
         newResults = [...newResults, ...pageResults];
         
-        // Si on a moins de 25 résultats, c'est la dernière page
+        // Si on a moins de 25 résultats, c'est probablement la dernière page
         if (data.companies.length < 25) {
           break;
         }
         
         currentPage++;
       }
+
+      console.log(`Found ${newResults.length} companies after searching ${currentPage - 1} pages`);
 
       // Limiter le nombre de résultats
       newResults = newResults.slice(0, quickSearchLimit);
