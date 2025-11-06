@@ -54,16 +54,16 @@ export default async function handler(
       });
     }
 
-    // Vérifier si on a une clé API Sirene
-    const sireneApiKey = process.env.SIRENE_API_KEY;
+    // Vérifier si on a une clé API Sirene v3.11 (INSEE)
+    const sireneApiKey = process.env.SIRENE_API_KEY || process.env.INSEE_API_KEY;
     
     if (!sireneApiKey) {
       // Fallback: utiliser l'API Sirene publique (gratuite mais limitée)
       return await searchWithPublicSireneAPI(city, departmentCode, apeCodeOrName, page, limit, res);
     }
 
-    // Utiliser l'API Sirene avec clé (si disponible)
-    return await searchWithSireneAPI(city, departmentCode, apeCodeOrName, page, limit, sireneApiKey, res);
+    // Utiliser l'API Sirene v3.11 avec clé (si disponible)
+    return await searchWithSireneV3API(city, departmentCode, apeCodeOrName, page, limit, sireneApiKey, res);
 
   } catch (error) {
     console.error('Error searching companies:', error);
@@ -245,9 +245,11 @@ async function searchWithPublicSireneAPI(
 }
 
 /**
- * Recherche avec l'API Sirene avec clé (version premium)
+ * Recherche avec l'API Sirene v3.11 de l'INSEE (version structurée)
+ * Utilise des filtres structurés : code APE, département, code postal, commune
+ * Documentation: https://api.insee.fr/api-sirene/3.11
  */
-async function searchWithSireneAPI(
+async function searchWithSireneV3API(
   city: string | undefined,
   departmentCode: string | undefined,
   apeCodeOrName: string | undefined,
@@ -257,52 +259,84 @@ async function searchWithSireneAPI(
   res: VercelResponse
 ) {
   try {
-    // Construire la requête
-    let query = '';
+    // Construire la requête avec des filtres structurés pour l'API Sirene v3
+    const filters: string[] = [];
     
+    // Filtre par code APE (activité principale)
+    if (apeCodeOrName && /^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
+      filters.push(`activitePrincipaleUniteLegale:${apeCodeOrName.toUpperCase()}`);
+    }
+    
+    // Filtre par département (code postal commence par le code département)
     if (departmentCode) {
       const normalizedDeptCode = departmentCode.padStart(2, '0');
-      query = `codePostalEtablissement:${normalizedDeptCode}*`;
-    } else if (city) {
-      query = `codeCommuneEtablissement:${encodeURIComponent(city)}`;
+      // Rechercher par code postal qui commence par le code département
+      filters.push(`codePostalEtablissement:${normalizedDeptCode}*`);
     }
     
-    if (apeCodeOrName) {
-      if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-        query += query ? ` AND activitePrincipaleEtablissement:${apeCodeOrName.toUpperCase()}` : `activitePrincipaleEtablissement:${apeCodeOrName.toUpperCase()}`;
-      } else {
-        query += query ? ` AND denominationUniteLegale:"${apeCodeOrName}"` : `denominationUniteLegale:"${apeCodeOrName}"`;
-      }
-    }
+    // Filtre par code postal spécifique (si on a une ville avec code postal connu)
+    // Note: Pour l'instant, on utilise le département, mais on pourrait améliorer avec des codes postaux spécifiques
+    
+    // Construire la requête finale
+    const query = filters.length > 0 ? filters.join(' AND ') : '*';
+    
+    // Calculer le nombre de résultats par page (max 100 pour Sirene v3.11)
+    const perPage = limit && limit < 100 ? limit : 25;
+    const start = (page - 1) * perPage;
+    
+    // URL de l'API Sirene v3.11
+    // Endpoint: /siret pour rechercher des établissements
+    const apiUrl = `https://api.insee.fr/api-sirene/3.11/siret?q=${encodeURIComponent(query)}&nombre=${perPage}&debut=${start}`;
+    
+    console.log('Sirene v3.11 API URL:', apiUrl);
+    console.log('Query:', query);
 
-    const response = await fetch(
-      `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25&page=${page}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Accept': 'application/json',
-        }
+    const response = await fetch(apiUrl, {
+      headers: {
+        'X-INSEE-Api-Key-Integration': apiKey,
+        'Accept': 'application/json',
       }
-    );
+    });
 
     if (!response.ok) {
-      throw new Error('Sirene API error');
+      const errorText = await response.text();
+      console.error('Sirene v3.11 API error:', response.status, errorText);
+      // En cas d'erreur, fallback sur l'API publique
+      return await searchWithPublicSireneAPI(city, departmentCode, apeCodeOrName, page, limit, res);
     }
 
     const data = await response.json();
 
-    let companies: Company[] = (data.results || []).map((etab: any, index: number) => ({
-      id: etab.siret || `etab-${index}`,
-      name: etab.nom || etab.denomination || 'Entreprise',
-      address: etab.siege?.adresse || '',
-      city: etab.siege?.ville || city || '',
-      postalCode: etab.siege?.code_postal || '',
-      phone: etab.telephone || undefined,
-      email: etab.email || undefined,
-      apeCode: etab.activite_principale || '',
-      latitude: etab.latitude ? parseFloat(String(etab.latitude)) : undefined,
-      longitude: etab.longitude ? parseFloat(String(etab.longitude)) : undefined,
-    }));
+    // Transformer les résultats de l'API Sirene v3
+    let companies: Company[] = [];
+    
+    if (data.etablissements && Array.isArray(data.etablissements)) {
+      companies = data.etablissements.map((etab: any) => {
+        const uniteLegale = etab.uniteLegale || {};
+        const adresseEtablissement = etab.adresseEtablissement || {};
+        const activitePrincipale = uniteLegale.activitePrincipaleUniteLegale || 
+                                   etab.periodesEtablissement?.[0]?.activitePrincipaleEtablissement || '';
+        
+        // Construire l'adresse complète
+        let address = '';
+        if (adresseEtablissement.numeroVoieEtablissement || adresseEtablissement.typeVoieEtablissement || adresseEtablissement.libelleVoieEtablissement) {
+          address = `${adresseEtablissement.numeroVoieEtablissement || ''} ${adresseEtablissement.typeVoieEtablissement || ''} ${adresseEtablissement.libelleVoieEtablissement || ''}`.trim();
+        }
+        
+        return {
+          id: etab.siret || '',
+          name: uniteLegale.denominationUniteLegale || (uniteLegale.prenom1UniteLegale && uniteLegale.nomUniteLegale ? `${uniteLegale.prenom1UniteLegale} ${uniteLegale.nomUniteLegale}` : 'Entreprise') || 'Entreprise',
+          address: address,
+          city: adresseEtablissement.libelleCommuneEtablissement || city || '',
+          postalCode: adresseEtablissement.codePostalEtablissement || '',
+          phone: undefined, // L'API Sirene v3 ne fournit pas le téléphone
+          email: undefined, // L'API Sirene v3 ne fournit pas l'email
+          apeCode: activitePrincipale,
+          latitude: adresseEtablissement.latitude ? parseFloat(String(adresseEtablissement.latitude)) : undefined,
+          longitude: adresseEtablissement.longitude ? parseFloat(String(adresseEtablissement.longitude)) : undefined,
+        };
+      });
+    }
 
     // Limiter le nombre de résultats si un limit est spécifié
     if (limit && limit > 0) {
@@ -310,7 +344,10 @@ async function searchWithSireneAPI(
     }
 
     // Vérifier s'il y a une page suivante
-    const hasMore = !limit && companies.length === 25;
+    const total = data.header?.total || 0;
+    const hasMore = total > start + companies.length;
+
+    console.log(`Sirene v3.11: Found ${companies.length} companies (total: ${total})`);
 
     return res.status(200).json({ 
       companies,
@@ -319,7 +356,8 @@ async function searchWithSireneAPI(
     });
 
   } catch (error) {
-    console.error('Error with Sirene API:', error);
-    return res.status(200).json({ companies: [] });
+    console.error('Error with Sirene v3.11 API:', error);
+    // En cas d'erreur, fallback sur l'API publique
+    return await searchWithPublicSireneAPI(city, departmentCode, apeCodeOrName, page, limit, res);
   }
 }
