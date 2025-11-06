@@ -701,198 +701,35 @@ export default function ProspectFinder() {
       console.log('Mots-clés à utiliser:', sectorKeywords);
       
       // Stratégie de recherche améliorée :
-      // 1. Utiliser le nom du secteur (label) au lieu du code APE pour la recherche
-      // 2. Rechercher dans les villes principales du département
-      // 3. Filtrer ensuite les résultats par code APE si nécessaire
+      // L'API Recherche Entreprises ne fonctionne PAS bien avec des recherches par département seul
+      // Elle fonctionne mieux avec ville + mot-clé
+      // Donc on va directement rechercher dans les villes principales du département
       
       let newResults: Company[] = [];
       
-      // Étape 1 : Recherche directe par département + nom du secteur (sans ville)
-      console.log('=== ÉTAPE 1: Recherche directe par département + nom secteur ===');
-      try {
-        let currentPage = 1;
-        const maxPages = 5; // 5 pages pour la recherche directe (125 résultats max)
-        
-        while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
-          const requestBody = {
-            departmentCode: departmentCode,
-            apeCodeOrName: sectorKeywords, // Utiliser le nom du secteur au lieu du code APE
-            page: currentPage,
-            limit: 25,
-          };
-          
-          console.log(`[ÉTAPE 1] Page ${currentPage}: Envoi requête:`, JSON.stringify(requestBody));
-          
-          const response = await fetch('/api/searchCompanies', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody),
-          });
-
-          console.log(`[ÉTAPE 1] Page ${currentPage}: Status HTTP:`, response.status, response.statusText);
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[ÉTAPE 1] Page ${currentPage}: Erreur HTTP:`, errorText);
-            break;
-          }
-
-          const data = await response.json();
-          
-          // Afficher les infos de debug si disponibles
-          if (data.debug) {
-            console.log(`[ÉTAPE 1] Page ${currentPage}: DEBUG API:`, {
-              requête: data.debug.query,
-              urlAPI: data.debug.apiUrl,
-              résultatsBruts: data.debug.rawResultsCount,
-              résultatsFiltrés: data.debug.filteredResultsCount,
-              message: data.debug.message
-            });
-          }
-          
-          console.log(`[ÉTAPE 1] Page ${currentPage}: Réponse reçue:`, {
-            error: data.error,
-            companiesCount: data.companies?.length || 0,
-            hasMore: data.hasMore,
-            companies: data.companies?.slice(0, 3).map((c: any) => ({
-              name: c.name,
-              city: c.city,
-              postalCode: c.postalCode,
-              apeCode: c.apeCode
-            })) || []
-          });
-
-          if (data.error) {
-            console.error(`[ÉTAPE 1] Page ${currentPage}: Erreur dans la réponse:`, data.error);
-            break;
-          }
-
-          if (!data.companies || data.companies.length === 0) {
-            console.log(`[ÉTAPE 1] Page ${currentPage}: Aucun résultat`);
-            break;
-          }
-
-          const pageResults: Company[] = data.companies.map((company: any) => ({
-            ...company,
-            hasWebsite: false,
-            site_web: '',
-          }));
-
-          // Filtrer par code APE si nécessaire (car on a cherché par nom de secteur)
-          const filteredByApeCode = pageResults.filter(company => {
-            if (!company.apeCode) return false;
-            const companyApeCode = company.apeCode.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
-            const searchApeCode = quickSearchSector.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
-            // Accepter si le code APE correspond exactement ou commence par les 4 premiers chiffres
-            return companyApeCode === searchApeCode || 
-                   companyApeCode.startsWith(searchApeCode.substring(0, 4));
-          });
-
-          console.log(`[ÉTAPE 1] Page ${currentPage}: ${pageResults.length} résultats bruts, ${filteredByApeCode.length} après filtrage par code APE ${quickSearchSector}`);
-          newResults = [...newResults, ...filteredByApeCode];
-          
-          if (data.companies.length < 25) {
-            console.log(`[ÉTAPE 1] Page ${currentPage}: Dernière page (moins de 25 résultats)`);
-            break;
-          }
-          
-          currentPage++;
+      // ÉTAPE 1 : Recherche directe par villes principales (plus efficace)
+      // L'API Recherche Entreprises fonctionne mieux avec ville + mot-clé qu'avec département seul
+      const mainCities = getMainCitiesForDepartment(departmentCode);
+      console.log(`=== ÉTAPE 1: Recherche par villes principales ===`);
+      console.log(`Villes à rechercher: ${mainCities.join(', ')}`);
+      
+      // Essayer d'abord avec le nom principal du secteur, puis les variantes
+      const searchKeywords = [sectorKeywords, ...getSectorVariants(quickSearchSector).slice(1)]; // Prendre les variantes sauf la première (déjà utilisée)
+      console.log(`Mots-clés à essayer: ${searchKeywords.join(', ')}`);
+      
+      for (const city of mainCities) {
+        if (newResults.length >= quickSearchLimit) {
+          console.log(`[ÉTAPE 1] Limite atteinte (${newResults.length}), arrêt de la recherche`);
+          break;
         }
         
-        console.log(`[ÉTAPE 1] RÉSUMÉ: ${newResults.length} entreprises trouvées au total`);
-      } catch (error) {
-        console.error('[ÉTAPE 1] Erreur exception:', error);
-      }
-      
-      // Étape 2 : Si pas assez de résultats, essayer avec des variantes du nom du secteur
-      if (newResults.length < quickSearchLimit) {
-        const sectorVariants = getSectorVariants(quickSearchSector);
-        console.log(`=== ÉTAPE 2: Essai avec variantes du secteur ===`);
-        console.log(`Variantes à essayer:`, sectorVariants);
-        
-        for (const variant of sectorVariants) {
+        // Essayer chaque variante de mot-clé pour cette ville
+        for (const keyword of searchKeywords) {
           if (newResults.length >= quickSearchLimit) break;
           
-          try {
-            let currentPage = 1;
-            const maxPages = 2;
-            
-            while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
-              const response = await fetch('/api/searchCompanies', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  departmentCode: departmentCode,
-                  apeCodeOrName: variant, // Variante du nom du secteur
-                  page: currentPage,
-                  limit: 25,
-                }),
-              });
-
-              if (!response.ok) break;
-
-              const data = await response.json();
-
-              if (data.error || !data.companies || data.companies.length === 0) {
-                break;
-              }
-
-              const pageResults: Company[] = data.companies.map((company: any) => ({
-                ...company,
-                hasWebsite: false,
-                site_web: '',
-              }));
-
-              // Filtrer par code APE si nécessaire (car on a cherché par variante du nom)
-              const filteredByApeCode = pageResults.filter(company => {
-                if (!company.apeCode) return false;
-                const companyApeCode = company.apeCode.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
-                const searchApeCode = quickSearchSector.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
-                return companyApeCode === searchApeCode || 
-                       companyApeCode.startsWith(searchApeCode.substring(0, 4));
-              });
-
-              // Ajouter seulement les résultats uniques
-              const uniqueResults = filteredByApeCode.filter(company => 
-                !newResults.some(r => r.id === company.id)
-              );
-
-              console.log(`[ÉTAPE 2] Variante "${variant}" - Page ${currentPage}: ${pageResults.length} résultats bruts, ${filteredByApeCode.length} après filtrage, ${uniqueResults.length} nouveaux`);
-              newResults = [...newResults, ...uniqueResults];
-              
-              if (data.companies.length < 25) {
-                break;
-              }
-              
-              currentPage++;
-            }
-          } catch (error) {
-            console.warn(`[ÉTAPE 2] Erreur avec variante "${variant}":`, error);
-          }
-        }
-        
-        console.log(`[ÉTAPE 2] RÉSUMÉ: ${newResults.length} entreprises trouvées au total après essai des variantes`);
-      }
-      
-      // Étape 3 : Si toujours pas assez, essayer avec les villes principales
-      if (newResults.length < quickSearchLimit) {
-        const mainCities = getMainCitiesForDepartment(departmentCode);
-        console.log(`=== ÉTAPE 3: Recherche par villes principales ===`);
-        console.log(`Villes à rechercher: ${mainCities.join(', ')}`);
-        
-        for (const city of mainCities) {
-          if (newResults.length >= quickSearchLimit) {
-            console.log(`[ÉTAPE 3] Limite atteinte (${newResults.length}), arrêt de la recherche`);
-            break;
-          }
-          
-          console.log(`[ÉTAPE 3] Recherche dans ${city}...`);
+          console.log(`[ÉTAPE 1] Recherche: ${city} + "${keyword}"...`);
           let currentPage = 1;
-          const maxPages = 3; // 3 pages par ville (75 résultats max par ville)
+          const maxPages = 3; // 3 pages par combinaison ville+mot-clé
           let foundInCity = 0;
           
           while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
@@ -900,12 +737,12 @@ export default function ProspectFinder() {
               const requestBody = {
                 city: city,
                 departmentCode: departmentCode,
-                apeCodeOrName: quickSearchSector,
+                apeCodeOrName: keyword,
                 page: currentPage,
                 limit: 25,
               };
               
-              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Envoi requête:`, JSON.stringify(requestBody));
+              console.log(`[ÉTAPE 1] ${city} + "${keyword}" - Page ${currentPage}: Envoi requête`);
               
               const response = await fetch('/api/searchCompanies', {
                 method: 'POST',
@@ -915,11 +752,8 @@ export default function ProspectFinder() {
                 body: JSON.stringify(requestBody),
               });
 
-              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Status HTTP:`, response.status);
-
               if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`[ÉTAPE 3] ${city} - Page ${currentPage}: Erreur HTTP:`, errorText);
+                console.warn(`[ÉTAPE 1] ${city} + "${keyword}" - Page ${currentPage}: Erreur HTTP ${response.status}`);
                 break;
               }
 
@@ -927,32 +761,15 @@ export default function ProspectFinder() {
               
               // Afficher les infos de debug si disponibles
               if (data.debug) {
-                console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: DEBUG API:`, {
+                console.log(`[ÉTAPE 1] ${city} + "${keyword}" - Page ${currentPage}: DEBUG API:`, {
                   requête: data.debug.query,
-                  urlAPI: data.debug.apiUrl,
                   résultatsBruts: data.debug.rawResultsCount,
                   résultatsFiltrés: data.debug.filteredResultsCount,
                   message: data.debug.message
                 });
               }
-              
-              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Réponse:`, {
-                error: data.error,
-                companiesCount: data.companies?.length || 0,
-                companies: data.companies?.slice(0, 2).map((c: any) => ({
-                  name: c.name,
-                  city: c.city,
-                  postalCode: c.postalCode
-                })) || []
-              });
 
-              if (data.error) {
-                console.error(`[ÉTAPE 3] ${city} - Page ${currentPage}: Erreur:`, data.error);
-                break;
-              }
-
-              if (!data.companies || data.companies.length === 0) {
-                console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Aucun résultat`);
+              if (data.error || !data.companies || data.companies.length === 0) {
                 break;
               }
 
@@ -967,7 +784,6 @@ export default function ProspectFinder() {
                 if (!company.apeCode) return false;
                 const companyApeCode = company.apeCode.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
                 const searchApeCode = quickSearchSector.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
-                // Accepter si le code APE correspond exactement ou commence par les 4 premiers chiffres
                 return companyApeCode === searchApeCode || 
                        companyApeCode.startsWith(searchApeCode.substring(0, 4));
               });
@@ -977,29 +793,29 @@ export default function ProspectFinder() {
                 !newResults.some(r => r.id === company.id)
               );
 
-              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: ${pageResults.length} résultats bruts, ${filteredByApeCode.length} après filtrage par code APE ${quickSearchSector}, ${uniqueResults.length} nouveaux`);
               foundInCity += uniqueResults.length;
               newResults = [...newResults, ...uniqueResults];
               
-              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: ${uniqueResults.length} nouvelles entreprises (${foundInCity} au total pour ${city})`);
+              console.log(`[ÉTAPE 1] ${city} + "${keyword}" - Page ${currentPage}: ${pageResults.length} bruts → ${filteredByApeCode.length} filtrés → ${uniqueResults.length} nouveaux (total: ${newResults.length})`);
               
               if (data.companies.length < 25) {
-                console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Dernière page`);
                 break;
               }
               
               currentPage++;
             } catch (error) {
-              console.error(`[ÉTAPE 3] ${city} - Page ${currentPage}: Erreur exception:`, error);
+              console.error(`[ÉTAPE 1] ${city} + "${keyword}" - Page ${currentPage}: Erreur:`, error);
               break;
             }
           }
           
-          console.log(`[ÉTAPE 3] ${city}: ${foundInCity} entreprises trouvées`);
+          if (foundInCity > 0) {
+            console.log(`[ÉTAPE 1] ${city} + "${keyword}": ${foundInCity} entreprises trouvées`);
+          }
         }
-        
-        console.log(`[ÉTAPE 3] RÉSUMÉ: ${newResults.length} entreprises trouvées au total après recherche par villes`);
       }
+      
+      console.log(`[ÉTAPE 1] RÉSUMÉ: ${newResults.length} entreprises trouvées au total`);
 
       // Limiter le nombre de résultats
       newResults = newResults.slice(0, quickSearchLimit);

@@ -243,23 +243,24 @@ async function searchWithPublicSireneAPI(
       const normalizedDeptCode = departmentCode.padStart(2, '0');
       const beforeFilter = filteredResults.length;
       
-      // Log des codes postaux avant filtrage
+      // Log des codes postaux avant filtrage avec plus de détails
       const postalCodesBefore = filteredResults
-        .map((r: any) => r.siege?.code_postal || r.siege?.codePostal || 'SANS_CODE_POSTAL')
-        .slice(0, 10);
-      console.log(`[API] Codes postaux avant filtrage (10 premiers):`, postalCodesBefore);
+        .slice(0, 10)
+        .map((r: any) => ({
+          nom: r.nom_complet || r.nom || r.denomination,
+          codePostal: r.siege?.code_postal || r.siege?.codePostal || 'SANS_CODE_POSTAL',
+          ville: r.siege?.ville || 'SANS_VILLE'
+        }));
+      console.log(`[API] Détails avant filtrage (10 premiers):`, postalCodesBefore);
       
       filteredResults = filteredResults.filter((result: any) => {
         const siege = result.siege || {};
         const postalCode = (siege.code_postal || siege.codePostal || '').trim();
+        
+        // Si pas de code postal, on garde quand même le résultat (peut être une erreur de l'API)
         if (!postalCode) {
-          // Si pas de code postal, vérifier la ville (certaines villes peuvent être dans le département)
-          const ville = (siege.ville || '').toLowerCase();
-          // Pour les départements d'outre-mer, on peut être plus permissif
-          if (normalizedDeptCode.startsWith('97')) {
-            return true; // Garder les résultats sans code postal pour les DOM
-          }
-          return false;
+          console.log(`[API] Résultat sans code postal gardé: ${result.nom_complet || result.nom || result.denomination}`);
+          return true; // Garder les résultats sans code postal plutôt que de tout supprimer
         }
         
         // Vérifier si le code postal commence par le code du département
@@ -270,7 +271,7 @@ async function searchWithPublicSireneAPI(
                postalCode.startsWith(normalizedDeptCode);
         
         if (!matches) {
-          console.log(`[API] Résultat filtré: code postal ${postalCode} ne commence pas par ${normalizedDeptCode}`);
+          console.log(`[API] Résultat filtré: code postal ${postalCode} ne commence pas par ${normalizedDeptCode} (entreprise: ${result.nom_complet || result.nom || result.denomination})`);
         }
         
         return matches;
