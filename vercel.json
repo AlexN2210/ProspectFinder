@@ -8,6 +8,15 @@
     },
     "api/autocompleteCities.ts": {
       "maxDuration": 5
+    },
+    "api/analyzeWebsite.ts": {
+      "maxDuration": 15
+    },
+    "api/findEmail.ts": {
+      "maxDuration": 10
+    },
+    "api/generateProspectEmail.ts": {
+      "maxDuration": 5
     }
   },
   "rewrites": [
@@ -22,6 +31,18 @@
     {
       "source": "/api/autocompleteCities",
       "destination": "/api/autocompleteCities.ts"
+    },
+    {
+      "source": "/api/analyzeWebsite",
+      "destination": "/api/analyzeWebsite.ts"
+    },
+    {
+      "source": "/api/findEmail",
+      "destination": "/api/findEmail.ts"
+    },
+    {
+      "source": "/api/generateProspectEmail",
+      "destination": "/api/generateProspectEmail.ts"
     }
   ]
 }

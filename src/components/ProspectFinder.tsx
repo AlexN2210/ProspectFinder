@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X } from 'lucide-react';
+import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X, Copy, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import { APE_CATEGORIES, getAPELabel } from '@/data/apeCategories';
 
+interface WebsiteAnalysis {
+  exists: boolean;
+  quality: 'excellent' | 'good' | 'poor' | 'none';
+  score: number;
+  issues: string[];
+  hasMobileVersion: boolean;
+  hasModernDesign: boolean;
+  loadTime?: number;
+}
+
 interface Company {
   id: string;
   name: string;
@@ -24,6 +34,9 @@ interface Company {
   email?: string;
   site_web?: string;
   hasWebsite: boolean;
+  websiteAnalysis?: WebsiteAnalysis;
+  emailFound?: boolean;
+  emailSource?: 'website' | 'guessed' | 'api';
   apeCode: string;
   latitude?: number;
   longitude?: number;
@@ -42,6 +55,12 @@ export default function ProspectFinder() {
   const [error, setError] = useState<string | null>(null);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null);
+  const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [isAnalyzingWebsite, setIsAnalyzingWebsite] = useState<string | null>(null);
+  const [isFindingEmail, setIsFindingEmail] = useState<string | null>(null);
+  const [emailCopied, setEmailCopied] = useState(false);
   
   // État pour la pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -180,6 +199,116 @@ export default function ProspectFinder() {
     }
   };
 
+  // Fonction pour analyser la qualité d'un site web
+  const analyzeWebsite = async (website: string, companyName: string): Promise<WebsiteAnalysis | null> => {
+    try {
+      setIsAnalyzingWebsite(companyName);
+      const response = await fetch('/api/analyzeWebsite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          website,
+          companyName,
+        }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error analyzing website:', error);
+      return null;
+    } finally {
+      setIsAnalyzingWebsite(null);
+    }
+  };
+
+  // Fonction pour trouver l'email d'une entreprise
+  const findEmail = async (company: Company): Promise<{ email: string; source: 'website' | 'guessed' | 'api' } | null> => {
+    try {
+      setIsFindingEmail(company.id);
+      const response = await fetch('/api/findEmail', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName: company.name,
+          website: company.site_web,
+          city: company.city,
+          address: `${company.address}, ${company.postalCode} ${company.city}`,
+        }),
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.found && data.email) {
+        return {
+          email: data.email,
+          source: data.source || 'guessed'
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error finding email:', error);
+      return null;
+    } finally {
+      setIsFindingEmail(null);
+    }
+  };
+
+  // Fonction pour générer un email de prospection
+  const generateProspectEmail = async (company: Company, contactName?: string) => {
+    try {
+      setIsGeneratingEmail(true);
+      const response = await fetch('/api/generateProspectEmail', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName: company.name,
+          contactName,
+          websiteStatus: company.websiteAnalysis?.quality || (company.hasWebsite ? 'good' : 'none'),
+          websiteUrl: company.site_web,
+          companyCity: company.city,
+          companyActivity: getAPELabel(company.apeCode),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la génération de l\'email');
+      }
+
+      const data = await response.json();
+      setGeneratedEmail(data);
+      setIsEmailDialogOpen(true);
+    } catch (error) {
+      console.error('Error generating email:', error);
+      setError('Erreur lors de la génération de l\'email');
+    } finally {
+      setIsGeneratingEmail(false);
+    }
+  };
+
+  // Fonction pour copier l'email dans le presse-papier
+  const copyEmailToClipboard = () => {
+    if (generatedEmail) {
+      const fullEmail = `Objet: ${generatedEmail.subject}\n\n${generatedEmail.body}`;
+      navigator.clipboard.writeText(fullEmail);
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    }
+  };
+
   // Fonction pour charger une page de résultats
   const loadPage = async (page: number, isNewSearch: boolean = false) => {
     if (isNewSearch) {
@@ -249,12 +378,45 @@ export default function ProspectFinder() {
             const updatedResults = await Promise.all(
               newResults.map(async (company, index) => {
                 const websiteCheck = await checkWebsite(company);
-                setScanProgress(((index + 1) / newResults.length) * 100);
+                setScanProgress(((index + 1) / newResults.length) * 50); // 50% pour la vérification
+
+                let websiteAnalysis: WebsiteAnalysis | undefined;
+                let email: string | undefined;
+                let emailFound = false;
+                let emailSource: 'website' | 'guessed' | 'api' | undefined;
+
+                // Si le site existe, analyser sa qualité
+                if (websiteCheck.hasWebsite && websiteCheck.website) {
+                  websiteAnalysis = await analyzeWebsite(websiteCheck.website, company.name) || undefined;
+                  setScanProgress(50 + ((index + 1) / newResults.length) * 30); // 30% pour l'analyse
+                  
+                  // Chercher l'email
+                  const emailResult = await findEmail(company);
+                  if (emailResult) {
+                    email = emailResult.email;
+                    emailFound = true;
+                    emailSource = emailResult.source;
+                  }
+                  setScanProgress(80 + ((index + 1) / newResults.length) * 20); // 20% pour l'email
+                } else {
+                  // Même sans site, essayer de trouver un email
+                  const emailResult = await findEmail(company);
+                  if (emailResult) {
+                    email = emailResult.email;
+                    emailFound = true;
+                    emailSource = emailResult.source;
+                  }
+                  setScanProgress(50 + ((index + 1) / newResults.length) * 50);
+                }
 
                 return {
                   ...company,
                   hasWebsite: websiteCheck.hasWebsite,
                   site_web: websiteCheck.website || company.site_web || '',
+                  websiteAnalysis,
+                  email: email || company.email,
+                  emailFound,
+                  emailSource,
                 };
               })
             );
@@ -444,7 +606,7 @@ export default function ProspectFinder() {
   }, [results, selectedAPECategories, sortBy, availableCategories]);
 
   const exportToCSV = () => {
-    const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Site Web', 'Code APE', 'Catégorie'];
+    const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Email Source', 'Site Web', 'Qualité Site', 'Score Site', 'Code APE', 'Catégorie'];
     const csvContent = [
       headers.join(','),
       ...filteredAndSortedResults.map(company =>
@@ -455,7 +617,10 @@ export default function ProspectFinder() {
           `"${company.city}"`,
           `"${company.phone}"`,
           `"${company.email || ''}"`,
+          `"${company.emailSource || ''}"`,
           `"${company.site_web || ''}"`,
+          `"${company.websiteAnalysis?.quality || (company.hasWebsite ? 'Non analysé' : 'Aucun')}"`,
+          company.websiteAnalysis?.score?.toString() || '',
           company.apeCode,
           `"${getAPELabel(company.apeCode)}"`
         ].join(',')
@@ -958,6 +1123,8 @@ export default function ProspectFinder() {
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden lg:table-cell">Téléphone</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Code APE</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Site web</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden md:table-cell">Qualité</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden lg:table-cell">Email</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -994,16 +1161,98 @@ export default function ProspectFinder() {
                                         </div>
                                       </TableCell>
                                       <TableCell className="text-xs sm:text-sm">
-                                        {company.hasWebsite && company.site_web ? (
-                                          <span className="text-emerald-400 text-lg sm:text-xl font-bold" title={company.site_web}>
-                                            ✅
-                                          </span>
+                                        <div className="flex flex-col gap-1">
+                                          {company.hasWebsite && company.site_web ? (
+                                            <span className="text-emerald-400 text-lg sm:text-xl font-bold" title={company.site_web}>
+                                              ✅
+                                            </span>
+                                          ) : (
+                                            <span className="text-rose-400 text-lg sm:text-xl font-bold">❌</span>
+                                          )}
+                                          {company.site_web && (
+                                            <a
+                                              href={company.site_web}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="text-xs text-cyan-400 hover:text-cyan-300 underline truncate max-w-[150px]"
+                                              title={company.site_web}
+                                            >
+                                              {company.site_web.replace(/^https?:\/\//, '').substring(0, 20)}...
+                                            </a>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-xs sm:text-sm hidden md:table-cell">
+                                        {company.websiteAnalysis ? (
+                                          <div className="flex flex-col gap-1">
+                                            <Badge
+                                              variant="outline"
+                                              className={`text-xs w-fit ${
+                                                company.websiteAnalysis.quality === 'excellent'
+                                                  ? 'border-emerald-500 text-emerald-400'
+                                                  : company.websiteAnalysis.quality === 'good'
+                                                  ? 'border-cyan-500 text-cyan-400'
+                                                  : company.websiteAnalysis.quality === 'poor'
+                                                  ? 'border-orange-500 text-orange-400'
+                                                  : 'border-rose-500 text-rose-400'
+                                              }`}
+                                            >
+                                              {company.websiteAnalysis.quality === 'excellent'
+                                                ? 'Excellent'
+                                                : company.websiteAnalysis.quality === 'good'
+                                                ? 'Bon'
+                                                : company.websiteAnalysis.quality === 'poor'
+                                                ? 'Médiocre'
+                                                : 'Aucun'}
+                                            </Badge>
+                                            <span className="text-xs text-slate-500">
+                                              Score: {company.websiteAnalysis.score}/100
+                                            </span>
+                                          </div>
+                                        ) : company.hasWebsite ? (
+                                          <Badge variant="outline" className="border-cyan-500 text-cyan-400 text-xs">
+                                            Non analysé
+                                          </Badge>
                                         ) : (
-                                          <span className="text-rose-400 text-lg sm:text-xl font-bold">❌</span>
+                                          <span className="text-slate-500 text-xs">-</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-xs sm:text-sm hidden lg:table-cell">
+                                        {company.email ? (
+                                          <div className="flex items-center gap-2">
+                                            <Mail className="h-3 w-3 text-emerald-400" />
+                                            <span className="text-emerald-400 truncate max-w-[200px]" title={company.email}>
+                                              {company.email}
+                                            </span>
+                                            {company.emailSource === 'guessed' && (
+                                              <span className="text-xs text-slate-500" title="Email probable (non vérifié)">
+                                                ?
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="text-slate-500 text-xs">Non trouvé</span>
                                         )}
                                       </TableCell>
                                       <TableCell className="text-xs sm:text-sm">
-                                        <div className="flex items-center gap-1 sm:gap-2">
+                                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => generateProspectEmail(company)}
+                                              disabled={isGeneratingEmail}
+                                              className="text-purple-400 hover:text-purple-300 hover:bg-purple-400/10 text-xs sm:text-sm p-1 sm:p-2"
+                                              title="Générer un email de prospection"
+                                            >
+                                              {isGeneratingEmail ? (
+                                                <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                                              ) : (
+                                                <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
+                                              )}
+                                              <span className="hidden sm:inline ml-1">Email</span>
+                                            </Button>
+                                          </motion.div>
                                           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                                             <Button
                                               variant="ghost"
@@ -1041,7 +1290,7 @@ export default function ProspectFinder() {
                                         exit={{ opacity: 0, height: 0 }}
                                         className="bg-slate-800/20"
                                       >
-                                        <TableCell colSpan={5} className="text-slate-300 text-xs sm:text-sm py-3 px-4">
+                                        <TableCell colSpan={7} className="text-slate-300 text-xs sm:text-sm py-3 px-4">
                                           <div className="flex items-start gap-2">
                                             <MapPin className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                                             <div className="flex-1">
@@ -1164,21 +1413,97 @@ export default function ProspectFinder() {
                       Site web
                     </label>
                     {selectedCompany.hasWebsite && selectedCompany.site_web ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-emerald-400">✅</span>
-                        <a
-                          href={selectedCompany.site_web}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-cyan-400 hover:text-cyan-300 underline flex items-center gap-1"
-                        >
-                          {selectedCompany.site_web}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-emerald-400">✅</span>
+                          <a
+                            href={selectedCompany.site_web}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-cyan-400 hover:text-cyan-300 underline flex items-center gap-1"
+                          >
+                            {selectedCompany.site_web}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                        {selectedCompany.websiteAnalysis && (
+                          <div className="mt-2 p-3 bg-slate-800/50 rounded-lg space-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-slate-300">Qualité :</span>
+                              <Badge
+                                variant="outline"
+                                className={`${
+                                  selectedCompany.websiteAnalysis.quality === 'excellent'
+                                    ? 'border-emerald-500 text-emerald-400'
+                                    : selectedCompany.websiteAnalysis.quality === 'good'
+                                    ? 'border-cyan-500 text-cyan-400'
+                                    : selectedCompany.websiteAnalysis.quality === 'poor'
+                                    ? 'border-orange-500 text-orange-400'
+                                    : 'border-rose-500 text-rose-400'
+                                }`}
+                              >
+                                {selectedCompany.websiteAnalysis.quality === 'excellent'
+                                  ? 'Excellent'
+                                  : selectedCompany.websiteAnalysis.quality === 'good'
+                                  ? 'Bon'
+                                  : selectedCompany.websiteAnalysis.quality === 'poor'
+                                  ? 'Médiocre'
+                                  : 'Aucun'}
+                              </Badge>
+                              <span className="text-sm text-slate-400">
+                                (Score: {selectedCompany.websiteAnalysis.score}/100)
+                              </span>
+                            </div>
+                            {selectedCompany.websiteAnalysis.issues.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-xs font-semibold text-slate-400">Problèmes détectés :</span>
+                                <ul className="list-disc list-inside text-xs text-slate-500 space-y-1">
+                                  {selectedCompany.websiteAnalysis.issues.map((issue, idx) => (
+                                    <li key={idx}>{issue}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            <div className="flex gap-4 text-xs text-slate-400">
+                              <span>Mobile: {selectedCompany.websiteAnalysis.hasMobileVersion ? '✅' : '❌'}</span>
+                              <span>Design moderne: {selectedCompany.websiteAnalysis.hasModernDesign ? '✅' : '❌'}</span>
+                              {selectedCompany.websiteAnalysis.loadTime && (
+                                <span>Temps de chargement: {selectedCompany.websiteAnalysis.loadTime}ms</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-rose-400">❌ Aucun site web</span>
                     )}
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-cyan-400 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" />
+                        Email de prospection
+                      </label>
+                      <Button
+                        onClick={() => generateProspectEmail(selectedCompany)}
+                        disabled={isGeneratingEmail}
+                        variant="outline"
+                        className="border-purple-400/30 text-purple-400 hover:bg-purple-400/10"
+                        size="sm"
+                      >
+                        {isGeneratingEmail ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Génération...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Générer un email
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-cyan-400 flex items-center gap-2">
@@ -1198,6 +1523,73 @@ export default function ProspectFinder() {
                 </div>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modale d'email généré */}
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent className="max-w-3xl w-[95vw] sm:w-full bg-slate-900 border-slate-800 text-slate-100 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl text-purple-400 flex items-center gap-2">
+              <Sparkles className="h-6 w-6" />
+              Email de prospection généré
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Copiez cet email et personnalisez-le si nécessaire avant de l'envoyer
+            </DialogDescription>
+          </DialogHeader>
+          {generatedEmail && (
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-cyan-400">Objet :</label>
+                <div className="p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+                  <p className="text-slate-100">{generatedEmail.subject}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-cyan-400">Corps du message :</label>
+                <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+                  <pre className="text-slate-100 whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                    {generatedEmail.body}
+                  </pre>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={copyEmailToClipboard}
+                  className="bg-purple-500 hover:bg-purple-600 text-white flex-1"
+                >
+                  {emailCopied ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Copié !
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copier l'email
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => setIsEmailDialogOpen(false)}
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                >
+                  Fermer
+                </Button>
+              </div>
+              <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg">
+                <p className="text-xs text-cyan-400 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Note :</strong> N'oubliez pas de remplacer "[Votre nom]" par votre nom réel avant d'envoyer l'email.
+                    Vous pouvez également personnaliser le message selon vos besoins.
+                  </span>
+                </p>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
