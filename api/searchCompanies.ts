@@ -108,11 +108,17 @@ async function searchWithPublicSireneAPI(
       if (apeCodeOrName) {
         // Si c'est un code APE (format: 4 chiffres + 1 lettre)
         if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
+          // Rechercher par code APE uniquement (on filtrera par département après)
           query = apeCodeOrName.toUpperCase();
+        } else if (/^\d{4}$/.test(apeCodeOrName)) {
+          // Si c'est un code APE sans la lettre (4 chiffres), chercher par ce code
+          query = apeCodeOrName;
         } else {
+          // Recherche par nom du secteur
           query = apeCodeOrName;
         }
       } else {
+        // Si pas de code APE, chercher par code postal du département
         query = `${normalizedDeptCode}000`;
       }
     } else if (apeCodeOrName) {
@@ -160,10 +166,19 @@ async function searchWithPublicSireneAPI(
     // Filtrer par département si un code département a été spécifié
     if (departmentCode && filteredResults.length > 0) {
       const normalizedDeptCode = departmentCode.padStart(2, '0');
+      const beforeFilter = filteredResults.length;
       filteredResults = filteredResults.filter((result: any) => {
         const siege = result.siege || {};
         const postalCode = (siege.code_postal || siege.codePostal || '').trim();
-        if (!postalCode) return false;
+        if (!postalCode) {
+          // Si pas de code postal, vérifier la ville (certaines villes peuvent être dans le département)
+          const ville = (siege.ville || '').toLowerCase();
+          // Pour les départements d'outre-mer, on peut être plus permissif
+          if (normalizedDeptCode.startsWith('97')) {
+            return true; // Garder les résultats sans code postal pour les DOM
+          }
+          return false;
+        }
         
         // Vérifier si le code postal commence par le code du département
         const postalCodeStart = postalCode.substring(0, 2);
@@ -172,7 +187,7 @@ async function searchWithPublicSireneAPI(
                postalCodeStart3 === normalizedDeptCode + '0' ||
                postalCode.startsWith(normalizedDeptCode);
       });
-      console.log(`Filtered by department ${normalizedDeptCode}, results count: ${filteredResults.length}`);
+      console.log(`Filtered by department ${normalizedDeptCode}: ${filteredResults.length} results (from ${beforeFilter} total)`);
     }
     
     // Filtrer aussi par ville si une ville a été spécifiée

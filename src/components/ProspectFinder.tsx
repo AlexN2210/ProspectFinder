@@ -615,80 +615,185 @@ export default function ProspectFinder() {
       const department = DEPARTMENTS.find(d => d.code === quickSearchDepartment);
       const departmentCode = quickSearchDepartment;
       
-      // Obtenir les villes principales du département
-      const mainCities = getMainCitiesForDepartment(departmentCode);
+      // Stratégie de recherche améliorée :
+      // 1. D'abord essayer une recherche directe par département + code APE (sans ville)
+      // 2. Si pas assez de résultats, essayer avec les villes principales
+      // 3. Essayer aussi avec le code APE sans la lettre finale pour plus de résultats
       
-      // Rechercher dans chaque ville principale du département
       let newResults: Company[] = [];
       
-      for (const city of mainCities) {
-        if (newResults.length >= quickSearchLimit) break;
-        
+      // Étape 1 : Recherche directe par département + code APE
+      console.log('Trying direct search by department + APE code...');
+      try {
         let currentPage = 1;
-        const maxPages = 3; // 3 pages par ville (75 résultats max par ville)
-        let consecutiveEmptyPages = 0;
+        const maxPages = 5; // 5 pages pour la recherche directe (125 résultats max)
         
         while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
-          try {
+          const response = await fetch('/api/searchCompanies', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              departmentCode: departmentCode, // Recherche directe par département
+              apeCodeOrName: quickSearchSector,
+              page: currentPage,
+              limit: 25,
+            }),
+          });
+
+          if (!response.ok) break;
+
+          const data = await response.json();
+
+          if (data.error || !data.companies || data.companies.length === 0) {
+            break;
+          }
+
+          const pageResults: Company[] = data.companies.map((company: any) => ({
+            ...company,
+            hasWebsite: false,
+            site_web: '',
+          }));
+
+          newResults = [...newResults, ...pageResults];
+          
+          if (data.companies.length < 25) {
+            break; // Dernière page
+          }
+          
+          currentPage++;
+        }
+        
+        console.log(`Direct search found ${newResults.length} companies`);
+      } catch (error) {
+        console.warn('Error in direct search:', error);
+      }
+      
+      // Étape 2 : Si pas assez de résultats, essayer avec le code APE sans la lettre finale
+      if (newResults.length < quickSearchLimit && /^\d{4}[A-Z]$/.test(quickSearchSector.toUpperCase())) {
+        const apeCodeWithoutLetter = quickSearchSector.substring(0, 4);
+        console.log(`Trying with APE code without letter: ${apeCodeWithoutLetter}...`);
+        
+        try {
+          let currentPage = 1;
+          const maxPages = 3;
+          
+          while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
             const response = await fetch('/api/searchCompanies', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                city: city, // Rechercher par ville
-                departmentCode: departmentCode, // Filtrer par département
-                apeCodeOrName: quickSearchSector,
+                departmentCode: departmentCode,
+                apeCodeOrName: apeCodeWithoutLetter, // Code APE sans la lettre
                 page: currentPage,
                 limit: 25,
               }),
             });
 
-            if (!response.ok) {
-              consecutiveEmptyPages++;
-              if (consecutiveEmptyPages >= 2) break;
-              currentPage++;
-              continue;
-            }
+            if (!response.ok) break;
 
             const data = await response.json();
 
             if (data.error || !data.companies || data.companies.length === 0) {
-              consecutiveEmptyPages++;
-              if (consecutiveEmptyPages >= 2) break;
-              currentPage++;
-              continue;
+              break;
             }
 
-            consecutiveEmptyPages = 0;
-
-            // Transformer les résultats
             const pageResults: Company[] = data.companies.map((company: any) => ({
               ...company,
               hasWebsite: false,
               site_web: '',
             }));
 
-            // Ajouter seulement les résultats uniques (éviter les doublons)
-            const uniqueResults = pageResults.filter(company => 
+            // Filtrer pour garder seulement ceux qui correspondent au code APE complet
+            const filteredResults = pageResults.filter(company => 
+              company.apeCode && company.apeCode.startsWith(quickSearchSector.substring(0, 4))
+            );
+
+            // Ajouter seulement les résultats uniques
+            const uniqueResults = filteredResults.filter(company => 
               !newResults.some(r => r.id === company.id)
             );
 
             newResults = [...newResults, ...uniqueResults];
             
             if (data.companies.length < 25) {
-              break; // Dernière page pour cette ville
+              break;
             }
             
             currentPage++;
-          } catch (error) {
-            console.warn(`Error searching in ${city}:`, error);
-            break; // Passer à la ville suivante en cas d'erreur
           }
+          
+          console.log(`Search with APE code without letter found ${newResults.length} total companies`);
+        } catch (error) {
+          console.warn('Error in search with APE code without letter:', error);
         }
       }
+      
+      // Étape 3 : Si toujours pas assez, essayer avec les villes principales
+      if (newResults.length < quickSearchLimit) {
+        const mainCities = getMainCitiesForDepartment(departmentCode);
+        console.log(`Trying with cities: ${mainCities.join(', ')}...`);
+        
+        for (const city of mainCities) {
+          if (newResults.length >= quickSearchLimit) break;
+          
+          let currentPage = 1;
+          const maxPages = 2; // 2 pages par ville (50 résultats max par ville)
+          
+          while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
+            try {
+              const response = await fetch('/api/searchCompanies', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  city: city,
+                  departmentCode: departmentCode,
+                  apeCodeOrName: quickSearchSector,
+                  page: currentPage,
+                  limit: 25,
+                }),
+              });
 
-      console.log(`Found ${newResults.length} companies after searching in ${mainCities.length} cities`);
+              if (!response.ok) break;
+
+              const data = await response.json();
+
+              if (data.error || !data.companies || data.companies.length === 0) {
+                break;
+              }
+
+              const pageResults: Company[] = data.companies.map((company: any) => ({
+                ...company,
+                hasWebsite: false,
+                site_web: '',
+              }));
+
+              // Ajouter seulement les résultats uniques
+              const uniqueResults = pageResults.filter(company => 
+                !newResults.some(r => r.id === company.id)
+              );
+
+              newResults = [...newResults, ...uniqueResults];
+              
+              if (data.companies.length < 25) {
+                break;
+              }
+              
+              currentPage++;
+            } catch (error) {
+              console.warn(`Error searching in ${city}:`, error);
+              break;
+            }
+          }
+        }
+        
+        console.log(`Total found after all searches: ${newResults.length} companies`);
+      }
 
       // Limiter le nombre de résultats
       newResults = newResults.slice(0, quickSearchLimit);
