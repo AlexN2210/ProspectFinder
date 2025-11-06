@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 interface RequestBody {
-  city: string;
+  city?: string;
+  departmentCode?: string;
   apeCodeOrName?: string;
   page?: number;
   limit?: number;
@@ -44,12 +45,12 @@ export default async function handler(
   }
 
   try {
-    const { city, apeCodeOrName, page = 1, limit } = req.body as RequestBody;
+    const { city, departmentCode, apeCodeOrName, page = 1, limit } = req.body as RequestBody;
 
-    if (!city) {
+    if (!city && !departmentCode) {
       return res.status(400).json({ 
         companies: [],
-        error: 'City is required' 
+        error: 'City or departmentCode is required' 
       });
     }
 
@@ -58,11 +59,11 @@ export default async function handler(
     
     if (!sireneApiKey) {
       // Fallback: utiliser l'API Sirene publique (gratuite mais limitée)
-      return await searchWithPublicSireneAPI(city, apeCodeOrName, page, limit, res);
+      return await searchWithPublicSireneAPI(city, departmentCode, apeCodeOrName, page, limit, res);
     }
 
     // Utiliser l'API Sirene avec clé (si disponible)
-    return await searchWithSireneAPI(city, apeCodeOrName, page, limit, sireneApiKey, res);
+    return await searchWithSireneAPI(city, departmentCode, apeCodeOrName, page, limit, sireneApiKey, res);
 
   } catch (error) {
     console.error('Error searching companies:', error);
@@ -78,7 +79,8 @@ export default async function handler(
  * Utilise l'API Recherche Entreprises du gouvernement français
  */
 async function searchWithPublicSireneAPI(
-  city: string,
+  city: string | undefined,
+  departmentCode: string | undefined,
   apeCodeOrName: string | undefined,
   page: number,
   limit: number | undefined,
@@ -87,19 +89,47 @@ async function searchWithPublicSireneAPI(
   try {
     // Construire la requête de recherche
     // L'API Recherche Entreprises recherche par texte libre
-    let query = city;
+    let query = '';
     
-    if (apeCodeOrName) {
+    // Si on a un code département, rechercher par code postal
+    if (departmentCode) {
+      const normalizedDeptCode = departmentCode.padStart(2, '0');
+      
+      if (apeCodeOrName) {
+        // Si c'est un code APE (format: 4 chiffres + 1 lettre)
+        if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
+          // Rechercher par code APE et code postal du département
+          // On utilise le code postal comme critère (ex: 02xxx pour l'Aisne)
+          query = `${apeCodeOrName.toUpperCase()} ${normalizedDeptCode}000`;
+        } else {
+          // Recherche par nom et département
+          query = `${apeCodeOrName} ${normalizedDeptCode}000`;
+        }
+      } else {
+        // Recherche uniquement par département (code postal)
+        query = `${normalizedDeptCode}000`;
+      }
+    } else if (apeCodeOrName) {
       // Si c'est un code APE (format: 4 chiffres + 1 lettre)
       if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-        query = `${city} ${apeCodeOrName.toUpperCase()}`;
+        // Si on a une ville, l'inclure, sinon chercher uniquement par code APE
+        query = city ? `${city} ${apeCodeOrName.toUpperCase()}` : apeCodeOrName.toUpperCase();
       } else {
         // Sinon, recherche par nom
-        query = `${apeCodeOrName} ${city}`;
+        query = city ? `${apeCodeOrName} ${city}` : apeCodeOrName;
       }
+    } else if (city) {
+      // Si pas de code APE mais une ville
+      query = city;
+    } else {
+      // Si ni ville ni code APE ni département, retourner vide
+      return res.status(400).json({
+        companies: [],
+        error: 'City, departmentCode or apeCodeOrName is required'
+      });
     }
 
-    console.log(`Searching with query: ${query}, page: ${page}`);
+    console.log(`Searching with query: ${query}, page: ${page}, departmentCode: ${departmentCode}`);
 
     // API Recherche Entreprises (publique et gratuite)
     // per_page doit être entre 1 et 25 (par défaut 10)
@@ -123,11 +153,26 @@ async function searchWithPublicSireneAPI(
     const data = await response.json();
     console.log(`Page ${page} - Results count:`, data.results?.length || 0);
 
-    // Filtrer les résultats pour ne garder que ceux de la ville demandée
+    // Filtrer les résultats
     let filteredResults = (data.results || []);
     
-    // Filtrer par ville si possible
-    if (filteredResults.length > 0) {
+    // Filtrer par département si un code département a été spécifié
+    if (departmentCode && filteredResults.length > 0) {
+      const normalizedDeptCode = departmentCode.padStart(2, '0');
+      filteredResults = filteredResults.filter((result: any) => {
+        const siege = result.siege || {};
+        const postalCode = (siege.code_postal || siege.codePostal || '').trim();
+        if (!postalCode) return false;
+        
+        // Vérifier si le code postal commence par le code du département
+        return postalCode.startsWith(normalizedDeptCode) || 
+               postalCode.startsWith('0' + normalizedDeptCode) ||
+               (postalCode.length >= 2 && postalCode.substring(0, 2) === normalizedDeptCode);
+      });
+      console.log(`Filtered by department ${normalizedDeptCode}, results count:`, filteredResults.length);
+    }
+    // Filtrer par ville si une ville a été spécifiée (et pas de département)
+    else if (city && city.trim() && filteredResults.length > 0) {
       filteredResults = filteredResults.filter((result: any) => {
         const siege = result.siege || {};
         const ville = (siege.ville || '').toLowerCase();
@@ -135,6 +180,8 @@ async function searchWithPublicSireneAPI(
         return ville.includes(cityLower) || cityLower.includes(ville);
       });
       console.log('Filtered results count:', filteredResults.length);
+    } else {
+      console.log('No filter applied, using all results');
     }
 
     // Transformer les résultats en format Company
@@ -195,7 +242,8 @@ async function searchWithPublicSireneAPI(
  * Recherche avec l'API Sirene avec clé (version premium)
  */
 async function searchWithSireneAPI(
-  city: string,
+  city: string | undefined,
+  departmentCode: string | undefined,
   apeCodeOrName: string | undefined,
   page: number,
   limit: number | undefined,
@@ -204,13 +252,21 @@ async function searchWithSireneAPI(
 ) {
   try {
     // Construire la requête
-    let query = `codeCommuneEtablissement:${encodeURIComponent(city)}`;
+    let query = '';
+    
+    if (departmentCode) {
+      const normalizedDeptCode = departmentCode.padStart(2, '0');
+      // Rechercher par code postal du département
+      query = `codePostalEtablissement:${normalizedDeptCode}*`;
+    } else if (city) {
+      query = `codeCommuneEtablissement:${encodeURIComponent(city)}`;
+    }
     
     if (apeCodeOrName) {
       if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
-        query += ` AND activitePrincipaleEtablissement:${apeCodeOrName.toUpperCase()}`;
+        query += query ? ` AND activitePrincipaleEtablissement:${apeCodeOrName.toUpperCase()}` : `activitePrincipaleEtablissement:${apeCodeOrName.toUpperCase()}`;
       } else {
-        query += ` AND denominationUniteLegale:"${apeCodeOrName}"`;
+        query += query ? ` AND denominationUniteLegale:"${apeCodeOrName}"` : `denominationUniteLegale:"${apeCodeOrName}"`;
       }
     }
 

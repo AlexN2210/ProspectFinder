@@ -509,51 +509,55 @@ export default function ProspectFinder() {
     setScanProgress(0);
 
     try {
-      // Trouver une ville principale du département (on prend la première ville du département)
-      // Pour simplifier, on utilise le code postal du département
       const department = DEPARTMENTS.find(d => d.code === quickSearchDepartment);
       const departmentCode = quickSearchDepartment;
       
-      // Construire la requête avec le code APE et le département
-      // On va chercher dans plusieurs villes du département
-      const response = await fetch('/api/searchCompanies', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          city: department?.name || departmentCode, // Utiliser le nom du département
-          apeCodeOrName: quickSearchSector,
-          page: 1,
-          limit: quickSearchLimit, // Limiter les résultats
-        }),
-      });
+      // Rechercher directement par département et code APE
+      // Essayer plusieurs pages si nécessaire pour avoir assez de résultats
+      let newResults: Company[] = [];
+      let currentPage = 1;
+      const maxPages = 4; // Essayer jusqu'à 4 pages (100 résultats max)
+      
+      while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
+        const response = await fetch('/api/searchCompanies', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            departmentCode: departmentCode, // Rechercher directement par département
+            apeCodeOrName: quickSearchSector,
+            page: currentPage,
+            limit: 25, // 25 résultats par page
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Erreur lors de la recherche');
+        if (!response.ok) {
+          break; // Arrêter si erreur
+        }
+
+        const data = await response.json();
+
+        if (data.error || !data.companies || data.companies.length === 0) {
+          break; // Plus de résultats
+        }
+
+        // Transformer les résultats
+        const pageResults: Company[] = data.companies.map((company: any) => ({
+          ...company,
+          hasWebsite: false,
+          site_web: '',
+        }));
+
+        newResults = [...newResults, ...pageResults];
+        
+        // Si on a moins de 25 résultats, c'est la dernière page
+        if (data.companies.length < 25) {
+          break;
+        }
+        
+        currentPage++;
       }
-
-      const data = await response.json();
-
-      if (data.error) {
-        setError(`Erreur: ${data.error}`);
-        setIsLoading(false);
-        setIsQuickSearching(false);
-        return;
-      }
-
-      // Transformer les résultats
-      let newResults: Company[] = (data.companies || []).map((company: any) => ({
-        ...company,
-        hasWebsite: false,
-        site_web: '',
-      }));
-
-      // Filtrer par département (vérifier que le code postal commence par le code du département)
-      newResults = newResults.filter(company => {
-        const postalCode = company.postalCode || '';
-        return postalCode.startsWith(departmentCode) || postalCode.startsWith('0' + departmentCode);
-      });
 
       // Limiter le nombre de résultats
       newResults = newResults.slice(0, quickSearchLimit);
@@ -622,7 +626,7 @@ export default function ProspectFinder() {
       }
 
       if (newResults.length === 0) {
-        setError(`Aucune entreprise trouvée dans le département ${department?.name || departmentCode} pour le secteur ${getAPELabel(quickSearchSector)}`);
+        setError(`Aucune entreprise trouvée dans le département ${department?.name || departmentCode} (${departmentCode}) pour le secteur ${getAPELabel(quickSearchSector)}. Essayez avec un autre département ou secteur.`);
       }
     } catch (err) {
       setError('Une erreur est survenue lors de la recherche rapide');
