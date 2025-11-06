@@ -87,6 +87,9 @@ async function searchWithPublicSireneAPI(
   res: VercelResponse
 ) {
   try {
+    console.log('=== API: searchWithPublicSireneAPI ===');
+    console.log('Paramètres reçus:', { city, departmentCode, apeCodeOrName, page, limit });
+    
     // Construire la requête de recherche
     let query = '';
     
@@ -104,22 +107,27 @@ async function searchWithPublicSireneAPI(
     } else if (departmentCode) {
       // Si on a seulement un département (sans ville), chercher par code APE uniquement
       const normalizedDeptCode = departmentCode.padStart(2, '0');
+      console.log(`[API] Département normalisé: ${normalizedDeptCode}`);
       
       if (apeCodeOrName) {
         // Si c'est un code APE (format: 4 chiffres + 1 lettre)
         if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
           // Rechercher par code APE uniquement (on filtrera par département après)
           query = apeCodeOrName.toUpperCase();
+          console.log(`[API] Code APE détecté (format complet): ${query}`);
         } else if (/^\d{4}$/.test(apeCodeOrName)) {
           // Si c'est un code APE sans la lettre (4 chiffres), chercher par ce code
           query = apeCodeOrName;
+          console.log(`[API] Code APE détecté (sans lettre): ${query}`);
         } else {
           // Recherche par nom du secteur
           query = apeCodeOrName;
+          console.log(`[API] Recherche par nom: ${query}`);
         }
       } else {
         // Si pas de code APE, chercher par code postal du département
         query = `${normalizedDeptCode}000`;
+        console.log(`[API] Pas de code APE, recherche par code postal: ${query}`);
       }
     } else if (apeCodeOrName) {
       // Si c'est un code APE (format: 4 chiffres + 1 lettre)
@@ -137,11 +145,11 @@ async function searchWithPublicSireneAPI(
       });
     }
 
-    console.log(`Searching with query: ${query}, page: ${page}, departmentCode: ${departmentCode}`);
+    console.log(`[API] Requête construite: "${query}" | Page: ${page} | Département: ${departmentCode}`);
 
     // API Recherche Entreprises (publique et gratuite)
     const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(query)}&per_page=25&page=${page}`;
-    console.log('API URL:', apiUrl);
+    console.log('[API] URL appelée:', apiUrl);
 
     const response = await fetch(apiUrl, {
       headers: {
@@ -149,24 +157,44 @@ async function searchWithPublicSireneAPI(
       }
     });
 
-    console.log('Response status:', response.status);
+    console.log('[API] Status HTTP:', response.status, response.statusText);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('API Error:', errorText);
+      console.error('[API] Erreur HTTP:', response.status, errorText);
       throw new Error(`Sirene API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log(`Page ${page} - Results count:`, data.results?.length || 0);
+    console.log(`[API] Résultats bruts reçus: ${data.results?.length || 0} entreprises`);
+    
+    // Log des premiers résultats pour debug
+    if (data.results && data.results.length > 0) {
+      console.log('[API] Exemples de résultats bruts (3 premiers):', 
+        data.results.slice(0, 3).map((r: any) => ({
+          nom: r.nom_complet || r.nom || r.denomination,
+          ville: r.siege?.ville,
+          codePostal: r.siege?.code_postal || r.siege?.codePostal,
+          apeCode: r.activite_principale || r.activitePrincipale
+        }))
+      );
+    }
 
     // Filtrer les résultats
     let filteredResults = (data.results || []);
+    console.log(`[API] Avant filtrage: ${filteredResults.length} résultats`);
     
     // Filtrer par département si un code département a été spécifié
     if (departmentCode && filteredResults.length > 0) {
       const normalizedDeptCode = departmentCode.padStart(2, '0');
       const beforeFilter = filteredResults.length;
+      
+      // Log des codes postaux avant filtrage
+      const postalCodesBefore = filteredResults
+        .map((r: any) => r.siege?.code_postal || r.siege?.codePostal || 'SANS_CODE_POSTAL')
+        .slice(0, 10);
+      console.log(`[API] Codes postaux avant filtrage (10 premiers):`, postalCodesBefore);
+      
       filteredResults = filteredResults.filter((result: any) => {
         const siege = result.siege || {};
         const postalCode = (siege.code_postal || siege.codePostal || '').trim();
@@ -183,11 +211,22 @@ async function searchWithPublicSireneAPI(
         // Vérifier si le code postal commence par le code du département
         const postalCodeStart = postalCode.substring(0, 2);
         const postalCodeStart3 = postalCode.substring(0, 3);
-        return postalCodeStart === normalizedDeptCode || 
+        const matches = postalCodeStart === normalizedDeptCode || 
                postalCodeStart3 === normalizedDeptCode + '0' ||
                postalCode.startsWith(normalizedDeptCode);
+        
+        if (!matches) {
+          console.log(`[API] Résultat filtré: code postal ${postalCode} ne commence pas par ${normalizedDeptCode}`);
+        }
+        
+        return matches;
       });
-      console.log(`Filtered by department ${normalizedDeptCode}: ${filteredResults.length} results (from ${beforeFilter} total)`);
+      
+      const postalCodesAfter = filteredResults
+        .map((r: any) => r.siege?.code_postal || r.siege?.codePostal || 'SANS_CODE_POSTAL')
+        .slice(0, 10);
+      console.log(`[API] Codes postaux après filtrage (10 premiers):`, postalCodesAfter);
+      console.log(`[API] Filtrage département ${normalizedDeptCode}: ${filteredResults.length} résultats (sur ${beforeFilter} total)`);
     }
     
     // Filtrer aussi par ville si une ville a été spécifiée
@@ -243,7 +282,18 @@ async function searchWithPublicSireneAPI(
     // Vérifier s'il y a une page suivante
     const hasMore = !limit && filteredResults.length === 25;
 
-    console.log(`Found ${companies.length} companies on page ${page}, hasMore: ${hasMore}`);
+    console.log(`[API] RÉSUMÉ FINAL: ${companies.length} entreprises retournées (page ${page}, hasMore: ${hasMore})`);
+    if (companies.length > 0) {
+      console.log('[API] Exemples d\'entreprises retournées (3 premières):', 
+        companies.slice(0, 3).map(c => ({
+          name: c.name,
+          city: c.city,
+          postalCode: c.postalCode,
+          apeCode: c.apeCode
+        }))
+      );
+    }
+    
     return res.status(200).json({ 
       companies,
       currentPage: page,

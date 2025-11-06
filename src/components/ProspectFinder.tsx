@@ -623,30 +623,58 @@ export default function ProspectFinder() {
       let newResults: Company[] = [];
       
       // Étape 1 : Recherche directe par département + code APE
-      console.log('Trying direct search by department + APE code...');
+      console.log('=== ÉTAPE 1: Recherche directe par département + code APE ===');
+      console.log('Département:', departmentCode, '| Code APE:', quickSearchSector);
       try {
         let currentPage = 1;
         const maxPages = 5; // 5 pages pour la recherche directe (125 résultats max)
         
         while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
+          const requestBody = {
+            departmentCode: departmentCode,
+            apeCodeOrName: quickSearchSector,
+            page: currentPage,
+            limit: 25,
+          };
+          
+          console.log(`[ÉTAPE 1] Page ${currentPage}: Envoi requête:`, JSON.stringify(requestBody));
+          
           const response = await fetch('/api/searchCompanies', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              departmentCode: departmentCode, // Recherche directe par département
-              apeCodeOrName: quickSearchSector,
-              page: currentPage,
-              limit: 25,
-            }),
+            body: JSON.stringify(requestBody),
           });
 
-          if (!response.ok) break;
+          console.log(`[ÉTAPE 1] Page ${currentPage}: Status HTTP:`, response.status, response.statusText);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[ÉTAPE 1] Page ${currentPage}: Erreur HTTP:`, errorText);
+            break;
+          }
 
           const data = await response.json();
+          console.log(`[ÉTAPE 1] Page ${currentPage}: Réponse reçue:`, {
+            error: data.error,
+            companiesCount: data.companies?.length || 0,
+            hasMore: data.hasMore,
+            companies: data.companies?.slice(0, 3).map((c: any) => ({
+              name: c.name,
+              city: c.city,
+              postalCode: c.postalCode,
+              apeCode: c.apeCode
+            })) || []
+          });
 
-          if (data.error || !data.companies || data.companies.length === 0) {
+          if (data.error) {
+            console.error(`[ÉTAPE 1] Page ${currentPage}: Erreur dans la réponse:`, data.error);
+            break;
+          }
+
+          if (!data.companies || data.companies.length === 0) {
+            console.log(`[ÉTAPE 1] Page ${currentPage}: Aucun résultat`);
             break;
           }
 
@@ -656,18 +684,20 @@ export default function ProspectFinder() {
             site_web: '',
           }));
 
+          console.log(`[ÉTAPE 1] Page ${currentPage}: ${pageResults.length} entreprises ajoutées`);
           newResults = [...newResults, ...pageResults];
           
           if (data.companies.length < 25) {
-            break; // Dernière page
+            console.log(`[ÉTAPE 1] Page ${currentPage}: Dernière page (moins de 25 résultats)`);
+            break;
           }
           
           currentPage++;
         }
         
-        console.log(`Direct search found ${newResults.length} companies`);
+        console.log(`[ÉTAPE 1] RÉSUMÉ: ${newResults.length} entreprises trouvées au total`);
       } catch (error) {
-        console.warn('Error in direct search:', error);
+        console.error('[ÉTAPE 1] Erreur exception:', error);
       }
       
       // Étape 2 : Si pas assez de résultats, essayer avec le code APE sans la lettre finale
