@@ -1211,14 +1211,14 @@ export default function ProspectFinder() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-emerald-400" />
+                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
                       Département
                     </label>
                     <Select value={quickSearchDepartment} onValueChange={setQuickSearchDepartment}>
-                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
                         <SelectValue placeholder="Sélectionner un département" />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
@@ -1232,12 +1232,12 @@ export default function ProspectFinder() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-emerald-400" />
+                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
                       Secteur d'activité
                     </label>
                     <Select value={quickSearchSector} onValueChange={setQuickSearchSector}>
-                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
                         <SelectValue placeholder="Sélectionner un secteur" />
                       </SelectTrigger>
                       <SelectContent className="max-h-[300px]">
@@ -1251,15 +1251,15 @@ export default function ProspectFinder() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-emerald-400" />
+                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
                       Nombre de résultats
                     </label>
                     <Select 
                       value={quickSearchLimit.toString()} 
                       onValueChange={(value) => setQuickSearchLimit(parseInt(value))}
                     >
-                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1271,22 +1271,22 @@ export default function ProspectFinder() {
                     </Select>
                   </div>
 
-                  <div className="flex items-end">
+                  <div className="flex items-end sm:col-span-2 lg:col-span-1 w-full">
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
                       <Button
                         onClick={handleQuickSearch}
                         disabled={isQuickSearching || isLoading || isScanning || !quickSearchDepartment || !quickSearchSector}
-                        className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all duration-300"
+                        className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all duration-300 text-sm sm:text-base py-2 sm:py-2.5 h-auto min-h-[44px]"
                       >
                         {isQuickSearching || isLoading || isScanning ? (
                           <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {isScanning ? 'Analyse en cours...' : 'Recherche...'}
+                            <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                            <span className="text-xs sm:text-sm">{isScanning ? 'Analyse en cours...' : 'Recherche...'}</span>
                           </>
                         ) : (
                           <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Lancer la recherche
+                            <Sparkles className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                            <span className="text-xs sm:text-sm">Lancer la recherche</span>
                           </>
                         )}
                       </Button>
@@ -1316,7 +1316,7 @@ export default function ProspectFinder() {
                 </CardDescription>
               </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <div className="space-y-2 relative">
                   <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
                     <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
@@ -1397,22 +1397,22 @@ export default function ProspectFinder() {
                   />
                 </div>
 
-                <div className="flex items-end sm:col-span-2 md:col-span-1">
+                <div className="flex items-end sm:col-span-2 md:col-span-1 w-full">
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
                     <Button
                       onClick={handleSearch}
                       disabled={isLoading || isScanning}
-                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base"
+                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base py-2 sm:py-2.5 h-auto min-h-[44px]"
                     >
                       {isLoading || isScanning ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          {isScanning ? 'Scan en cours...' : 'Recherche...'}
+                          <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
+                          <span className="text-xs sm:text-sm">{isScanning ? 'Scan en cours...' : 'Recherche...'}</span>
                         </>
                       ) : (
                         <>
-                          <Search className="mr-2 h-4 w-4" />
-                          Rechercher
+                          <Search className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                          <span className="text-xs sm:text-sm">Rechercher</span>
                         </>
                       )}
                     </Button>
