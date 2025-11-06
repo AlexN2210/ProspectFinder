@@ -15,6 +15,82 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import { APE_CATEGORIES, getAPELabel } from '@/data/apeCategories';
 import { DEPARTMENTS } from '@/data/departments';
 
+// Fonction pour obtenir les mots-clés de recherche à partir d'un code APE
+function getSectorKeywords(apeCode: string): string {
+  const category = APE_CATEGORIES.find(cat => apeCode === cat.code || apeCode.startsWith(cat.code.substring(0, 4)));
+  if (category) {
+    // Retourner le label qui est plus adapté pour la recherche textuelle
+    return category.label;
+  }
+  
+  // Si pas de catégorie trouvée, essayer de deviner à partir du code
+  // Par exemple, 4776Z -> "Fleuriste", 4711F -> "Supermarché", etc.
+  const codeMap: Record<string, string> = {
+    '4776Z': 'Fleuriste',
+    '4711F': 'Supermarché',
+    '4722Z': 'Boucherie',
+    '4773Z': 'Pharmacie',
+    '5610A': 'Restaurant',
+    '5610B': 'Restaurant rapide',
+    '5610C': 'Café',
+    '9602A': 'Coiffure',
+    '4520A': 'Garage automobile',
+    '4322A': 'Plomberie',
+    '1623Z': 'Menuiserie',
+    '6920Z': 'Comptable',
+    '7022Z': 'Conseil',
+    '1071C': 'Boulangerie',
+    '1071D': 'Pâtisserie',
+    '8559A': 'Formation',
+  };
+  
+  return codeMap[apeCode] || getAPELabel(apeCode);
+}
+
+// Fonction pour obtenir des variantes de recherche pour un secteur
+function getSectorVariants(apeCode: string): string[] {
+  const category = APE_CATEGORIES.find(cat => apeCode === cat.code || apeCode.startsWith(cat.code.substring(0, 4)));
+  const variants: string[] = [];
+  
+  if (category) {
+    const label = category.label.toLowerCase();
+    // Ajouter des variantes courantes
+    if (label.includes('fleuriste')) {
+      variants.push('fleur', 'fleurs', 'fleuriste');
+    } else if (label.includes('supermarché')) {
+      variants.push('supermarché', 'super marché', 'hypermarché');
+    } else if (label.includes('boucherie')) {
+      variants.push('boucherie', 'boucher', 'charcuterie');
+    } else if (label.includes('pharmacie')) {
+      variants.push('pharmacie', 'pharmacien');
+    } else if (label.includes('restaurant')) {
+      variants.push('restaurant', 'restauration');
+    } else if (label.includes('café')) {
+      variants.push('café', 'bar', 'brasserie');
+    } else if (label.includes('coiffure')) {
+      variants.push('coiffure', 'coiffeur', 'salon de coiffure');
+    } else if (label.includes('garage')) {
+      variants.push('garage', 'garage automobile', 'mécanique');
+    } else if (label.includes('plomberie')) {
+      variants.push('plomberie', 'plombier', 'sanitaire');
+    } else if (label.includes('menuiserie')) {
+      variants.push('menuiserie', 'menuisier', 'charpente');
+    } else if (label.includes('boulangerie')) {
+      variants.push('boulangerie', 'boulanger', 'boulangerie pâtisserie');
+    } else if (label.includes('pâtisserie')) {
+      variants.push('pâtisserie', 'pâtissier');
+    }
+  }
+  
+  // Toujours ajouter le label principal en premier
+  const mainKeyword = getSectorKeywords(apeCode);
+  if (!variants.includes(mainKeyword.toLowerCase())) {
+    variants.unshift(mainKeyword);
+  }
+  
+  return variants.slice(0, 3); // Limiter à 3 variantes
+}
+
 // Fonction pour obtenir les villes principales d'un département
 function getMainCitiesForDepartment(departmentCode: string): string[] {
   const citiesByDepartment: Record<string, string[]> = {
@@ -615,16 +691,24 @@ export default function ProspectFinder() {
       const department = DEPARTMENTS.find(d => d.code === quickSearchDepartment);
       const departmentCode = quickSearchDepartment;
       
+      // Convertir le code APE en nom de secteur pour la recherche
+      // L'API Recherche Entreprises fonctionne mieux avec des mots-clés textuels qu'avec des codes APE
+      const sectorLabel = getAPELabel(quickSearchSector);
+      const sectorKeywords = getSectorKeywords(quickSearchSector);
+      
+      console.log('=== RECHERCHE RAPIDE ===');
+      console.log('Département:', departmentCode, '| Code APE:', quickSearchSector, '| Nom secteur:', sectorLabel);
+      console.log('Mots-clés à utiliser:', sectorKeywords);
+      
       // Stratégie de recherche améliorée :
-      // 1. D'abord essayer une recherche directe par département + code APE (sans ville)
-      // 2. Si pas assez de résultats, essayer avec les villes principales
-      // 3. Essayer aussi avec le code APE sans la lettre finale pour plus de résultats
+      // 1. Utiliser le nom du secteur (label) au lieu du code APE pour la recherche
+      // 2. Rechercher dans les villes principales du département
+      // 3. Filtrer ensuite les résultats par code APE si nécessaire
       
       let newResults: Company[] = [];
       
-      // Étape 1 : Recherche directe par département + code APE
-      console.log('=== ÉTAPE 1: Recherche directe par département + code APE ===');
-      console.log('Département:', departmentCode, '| Code APE:', quickSearchSector);
+      // Étape 1 : Recherche directe par département + nom du secteur (sans ville)
+      console.log('=== ÉTAPE 1: Recherche directe par département + nom secteur ===');
       try {
         let currentPage = 1;
         const maxPages = 5; // 5 pages pour la recherche directe (125 résultats max)
@@ -632,7 +716,7 @@ export default function ProspectFinder() {
         while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
           const requestBody = {
             departmentCode: departmentCode,
-            apeCodeOrName: quickSearchSector,
+            apeCodeOrName: sectorKeywords, // Utiliser le nom du secteur au lieu du code APE
             page: currentPage,
             limit: 25,
           };
@@ -696,8 +780,18 @@ export default function ProspectFinder() {
             site_web: '',
           }));
 
-          console.log(`[ÉTAPE 1] Page ${currentPage}: ${pageResults.length} entreprises ajoutées`);
-          newResults = [...newResults, ...pageResults];
+          // Filtrer par code APE si nécessaire (car on a cherché par nom de secteur)
+          const filteredByApeCode = pageResults.filter(company => {
+            if (!company.apeCode) return false;
+            const companyApeCode = company.apeCode.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+            const searchApeCode = quickSearchSector.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+            // Accepter si le code APE correspond exactement ou commence par les 4 premiers chiffres
+            return companyApeCode === searchApeCode || 
+                   companyApeCode.startsWith(searchApeCode.substring(0, 4));
+          });
+
+          console.log(`[ÉTAPE 1] Page ${currentPage}: ${pageResults.length} résultats bruts, ${filteredByApeCode.length} après filtrage par code APE ${quickSearchSector}`);
+          newResults = [...newResults, ...filteredByApeCode];
           
           if (data.companies.length < 25) {
             console.log(`[ÉTAPE 1] Page ${currentPage}: Dernière page (moins de 25 résultats)`);
@@ -712,66 +806,76 @@ export default function ProspectFinder() {
         console.error('[ÉTAPE 1] Erreur exception:', error);
       }
       
-      // Étape 2 : Si pas assez de résultats, essayer avec le code APE sans la lettre finale
-      if (newResults.length < quickSearchLimit && /^\d{4}[A-Z]$/.test(quickSearchSector.toUpperCase())) {
-        const apeCodeWithoutLetter = quickSearchSector.substring(0, 4);
-        console.log(`Trying with APE code without letter: ${apeCodeWithoutLetter}...`);
+      // Étape 2 : Si pas assez de résultats, essayer avec des variantes du nom du secteur
+      if (newResults.length < quickSearchLimit) {
+        const sectorVariants = getSectorVariants(quickSearchSector);
+        console.log(`=== ÉTAPE 2: Essai avec variantes du secteur ===`);
+        console.log(`Variantes à essayer:`, sectorVariants);
         
-        try {
-          let currentPage = 1;
-          const maxPages = 3;
+        for (const variant of sectorVariants) {
+          if (newResults.length >= quickSearchLimit) break;
           
-          while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
-            const response = await fetch('/api/searchCompanies', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                departmentCode: departmentCode,
-                apeCodeOrName: apeCodeWithoutLetter, // Code APE sans la lettre
-                page: currentPage,
-                limit: 25,
-              }),
-            });
-
-            if (!response.ok) break;
-
-            const data = await response.json();
-
-            if (data.error || !data.companies || data.companies.length === 0) {
-              break;
-            }
-
-            const pageResults: Company[] = data.companies.map((company: any) => ({
-              ...company,
-              hasWebsite: false,
-              site_web: '',
-            }));
-
-            // Filtrer pour garder seulement ceux qui correspondent au code APE complet
-            const filteredResults = pageResults.filter(company => 
-              company.apeCode && company.apeCode.startsWith(quickSearchSector.substring(0, 4))
-            );
-
-            // Ajouter seulement les résultats uniques
-            const uniqueResults = filteredResults.filter(company => 
-              !newResults.some(r => r.id === company.id)
-            );
-
-            newResults = [...newResults, ...uniqueResults];
+          try {
+            let currentPage = 1;
+            const maxPages = 2;
             
-            if (data.companies.length < 25) {
-              break;
+            while (newResults.length < quickSearchLimit && currentPage <= maxPages) {
+              const response = await fetch('/api/searchCompanies', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  departmentCode: departmentCode,
+                  apeCodeOrName: variant, // Variante du nom du secteur
+                  page: currentPage,
+                  limit: 25,
+                }),
+              });
+
+              if (!response.ok) break;
+
+              const data = await response.json();
+
+              if (data.error || !data.companies || data.companies.length === 0) {
+                break;
+              }
+
+              const pageResults: Company[] = data.companies.map((company: any) => ({
+                ...company,
+                hasWebsite: false,
+                site_web: '',
+              }));
+
+              // Filtrer par code APE si nécessaire (car on a cherché par variante du nom)
+              const filteredByApeCode = pageResults.filter(company => {
+                if (!company.apeCode) return false;
+                const companyApeCode = company.apeCode.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+                const searchApeCode = quickSearchSector.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+                return companyApeCode === searchApeCode || 
+                       companyApeCode.startsWith(searchApeCode.substring(0, 4));
+              });
+
+              // Ajouter seulement les résultats uniques
+              const uniqueResults = filteredByApeCode.filter(company => 
+                !newResults.some(r => r.id === company.id)
+              );
+
+              console.log(`[ÉTAPE 2] Variante "${variant}" - Page ${currentPage}: ${pageResults.length} résultats bruts, ${filteredByApeCode.length} après filtrage, ${uniqueResults.length} nouveaux`);
+              newResults = [...newResults, ...uniqueResults];
+              
+              if (data.companies.length < 25) {
+                break;
+              }
+              
+              currentPage++;
             }
-            
-            currentPage++;
+          } catch (error) {
+            console.warn(`[ÉTAPE 2] Erreur avec variante "${variant}":`, error);
           }
-          
-          console.log(`Search with APE code without letter found ${newResults.length} total companies`);
-        } catch (error) {
-          console.warn('Error in search with APE code without letter:', error);
         }
+        
+        console.log(`[ÉTAPE 2] RÉSUMÉ: ${newResults.length} entreprises trouvées au total après essai des variantes`);
       }
       
       // Étape 3 : Si toujours pas assez, essayer avec les villes principales
@@ -858,11 +962,22 @@ export default function ProspectFinder() {
                 site_web: '',
               }));
 
+              // Filtrer par code APE si nécessaire (car on a cherché par nom de secteur)
+              const filteredByApeCode = pageResults.filter(company => {
+                if (!company.apeCode) return false;
+                const companyApeCode = company.apeCode.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+                const searchApeCode = quickSearchSector.toUpperCase().replace(/\./g, '').replace(/\s/g, '').trim();
+                // Accepter si le code APE correspond exactement ou commence par les 4 premiers chiffres
+                return companyApeCode === searchApeCode || 
+                       companyApeCode.startsWith(searchApeCode.substring(0, 4));
+              });
+
               // Ajouter seulement les résultats uniques
-              const uniqueResults = pageResults.filter(company => 
+              const uniqueResults = filteredByApeCode.filter(company => 
                 !newResults.some(r => r.id === company.id)
               );
 
+              console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: ${pageResults.length} résultats bruts, ${filteredByApeCode.length} après filtrage par code APE ${quickSearchSector}, ${uniqueResults.length} nouveaux`);
               foundInCity += uniqueResults.length;
               newResults = [...newResults, ...uniqueResults];
               
