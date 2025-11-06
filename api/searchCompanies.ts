@@ -27,6 +27,13 @@ interface ResponseData {
   currentPage?: number;
   hasMore?: boolean;
   error?: string;
+  debug?: {
+    query?: string;
+    apiUrl?: string;
+    rawResultsCount?: number;
+    filteredResultsCount?: number;
+    message?: string;
+  };
 }
 
 /**
@@ -358,10 +365,22 @@ async function searchWithPublicSireneAPI(
       );
     }
     
+    // Préparer les infos de debug pour le frontend
+    const debugInfo: ResponseData['debug'] = {
+      query,
+      apiUrl,
+      rawResultsCount: data.results?.length || 0,
+      filteredResultsCount: companies.length,
+      message: companies.length === 0 
+        ? `Aucun résultat trouvé. Requête: "${query}". Résultats bruts de l'API: ${data.results?.length || 0}`
+        : `${companies.length} résultats retournés sur ${data.results?.length || 0} résultats bruts`
+    };
+    
     return res.status(200).json({ 
       companies,
       currentPage: page,
-      hasMore
+      hasMore,
+      debug: debugInfo
     });
 
   } catch (error) {

@@ -656,6 +656,18 @@ export default function ProspectFinder() {
           }
 
           const data = await response.json();
+          
+          // Afficher les infos de debug si disponibles
+          if (data.debug) {
+            console.log(`[ÉTAPE 1] Page ${currentPage}: DEBUG API:`, {
+              requête: data.debug.query,
+              urlAPI: data.debug.apiUrl,
+              résultatsBruts: data.debug.rawResultsCount,
+              résultatsFiltrés: data.debug.filteredResultsCount,
+              message: data.debug.message
+            });
+          }
+          
           console.log(`[ÉTAPE 1] Page ${currentPage}: Réponse reçue:`, {
             error: data.error,
             companiesCount: data.companies?.length || 0,
@@ -808,6 +820,17 @@ export default function ProspectFinder() {
               }
 
               const data = await response.json();
+              
+              // Afficher les infos de debug si disponibles
+              if (data.debug) {
+                console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: DEBUG API:`, {
+                  requête: data.debug.query,
+                  urlAPI: data.debug.apiUrl,
+                  résultatsBruts: data.debug.rawResultsCount,
+                  résultatsFiltrés: data.debug.filteredResultsCount,
+                  message: data.debug.message
+                });
+              }
               
               console.log(`[ÉTAPE 3] ${city} - Page ${currentPage}: Réponse:`, {
                 error: data.error,
