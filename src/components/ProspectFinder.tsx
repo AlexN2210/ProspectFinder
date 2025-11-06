@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X, Copy, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react';
+import { Search, Download, Building2, Loader2, MapPin, Phone, Globe, Mail, ExternalLink, Eye, Filter, X, Copy, CheckCircle2, AlertCircle, Sparkles, Send, SendCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
 import { APE_CATEGORIES, getAPELabel } from '@/data/apeCategories';
+import { DEPARTMENTS } from '@/data/departments';
 
 interface WebsiteAnalysis {
   exists: boolean;
@@ -60,6 +61,51 @@ export default function ProspectFinder() {
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
   
+  // État pour la recherche rapide automatique
+  const [quickSearchDepartment, setQuickSearchDepartment] = useState<string>('');
+  const [quickSearchSector, setQuickSearchSector] = useState<string>('');
+  const [quickSearchSize, setQuickSearchSize] = useState<'small' | 'medium' | 'large' | 'all'>('all');
+  const [quickSearchLimit, setQuickSearchLimit] = useState<number>(10);
+  const [isQuickSearching, setIsQuickSearching] = useState(false);
+  const [showQuickSearch, setShowQuickSearch] = useState(false);
+  
+  // État pour suivre les emails envoyés (persisté dans localStorage)
+  const [emailsSent, setEmailsSent] = useState<Set<string>>(new Set());
+  
+  // Charger les emails envoyés depuis localStorage au démarrage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('prospectFinder_emailsSent');
+      if (saved) {
+        const emailsSentArray = JSON.parse(saved);
+        setEmailsSent(new Set(emailsSentArray));
+      }
+    } catch (error) {
+      console.error('Error loading emails sent from localStorage:', error);
+    }
+  }, []);
+
+  // Sauvegarder les emails envoyés dans localStorage
+  const saveEmailsSent = (newEmailsSent: Set<string>) => {
+    try {
+      localStorage.setItem('prospectFinder_emailsSent', JSON.stringify(Array.from(newEmailsSent)));
+      setEmailsSent(newEmailsSent);
+    } catch (error) {
+      console.error('Error saving emails sent to localStorage:', error);
+    }
+  };
+
+  // Fonction pour marquer/démarquer un email comme envoyé
+  const toggleEmailSent = (companyId: string) => {
+    const newEmailsSent = new Set(emailsSent);
+    if (newEmailsSent.has(companyId)) {
+      newEmailsSent.delete(companyId);
+    } else {
+      newEmailsSent.add(companyId);
+    }
+    saveEmailsSent(newEmailsSent);
+  };
+  
   // État pour la pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMorePages, setHasMorePages] = useState(false);
@@ -69,6 +115,7 @@ export default function ProspectFinder() {
   const [selectedAPECategories, setSelectedAPECategories] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<'name' | 'ape' | 'website'>('name');
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [filterEmailSent, setFilterEmailSent] = useState<'all' | 'sent' | 'notSent'>('all');
   
   // État pour les adresses visibles
   const [visibleAddresses, setVisibleAddresses] = useState<Set<string>>(new Set());
@@ -448,6 +495,145 @@ export default function ProspectFinder() {
     await loadPage(1, true);
   };
 
+  // Fonction de recherche rapide automatique
+  const handleQuickSearch = async () => {
+    if (!quickSearchDepartment || !quickSearchSector) {
+      setError('Veuillez sélectionner un département et un secteur d\'activité');
+      return;
+    }
+
+    setIsQuickSearching(true);
+    setError(null);
+    setResults([]);
+    setHasSearched(false);
+    setIsLoading(true);
+    setScanProgress(0);
+
+    try {
+      // Trouver une ville principale du département (on prend la première ville du département)
+      // Pour simplifier, on utilise le code postal du département
+      const department = DEPARTMENTS.find(d => d.code === quickSearchDepartment);
+      const departmentCode = quickSearchDepartment;
+      
+      // Construire la requête avec le code APE et le département
+      // On va chercher dans plusieurs villes du département
+      const response = await fetch('/api/searchCompanies', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          city: department?.name || departmentCode, // Utiliser le nom du département
+          apeCodeOrName: quickSearchSector,
+          page: 1,
+          limit: quickSearchLimit, // Limiter les résultats
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erreur lors de la recherche');
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(`Erreur: ${data.error}`);
+        setIsLoading(false);
+        setIsQuickSearching(false);
+        return;
+      }
+
+      // Transformer les résultats
+      let newResults: Company[] = (data.companies || []).map((company: any) => ({
+        ...company,
+        hasWebsite: false,
+        site_web: '',
+      }));
+
+      // Filtrer par département (vérifier que le code postal commence par le code du département)
+      newResults = newResults.filter(company => {
+        const postalCode = company.postalCode || '';
+        return postalCode.startsWith(departmentCode) || postalCode.startsWith('0' + departmentCode);
+      });
+
+      // Limiter le nombre de résultats
+      newResults = newResults.slice(0, quickSearchLimit);
+
+      setResults(newResults);
+      setIsLoading(false);
+      setHasSearched(true);
+
+      // Scanner les sites web
+      if (newResults.length > 0) {
+        setIsScanning(true);
+        setScanProgress(0);
+
+        try {
+          const updatedResults = await Promise.all(
+            newResults.map(async (company, index) => {
+              const websiteCheck = await checkWebsite(company);
+              setScanProgress(((index + 1) / newResults.length) * 50);
+
+              let websiteAnalysis: WebsiteAnalysis | undefined;
+              let email: string | undefined;
+              let emailFound = false;
+              let emailSource: 'website' | 'guessed' | 'api' | undefined;
+
+              if (websiteCheck.hasWebsite && websiteCheck.website) {
+                websiteAnalysis = await analyzeWebsite(websiteCheck.website, company.name) || undefined;
+                setScanProgress(50 + ((index + 1) / newResults.length) * 30);
+                
+                const emailResult = await findEmail(company);
+                if (emailResult) {
+                  email = emailResult.email;
+                  emailFound = true;
+                  emailSource = emailResult.source;
+                }
+                setScanProgress(80 + ((index + 1) / newResults.length) * 20);
+              } else {
+                const emailResult = await findEmail(company);
+                if (emailResult) {
+                  email = emailResult.email;
+                  emailFound = true;
+                  emailSource = emailResult.source;
+                }
+                setScanProgress(50 + ((index + 1) / newResults.length) * 50);
+              }
+
+              return {
+                ...company,
+                hasWebsite: websiteCheck.hasWebsite,
+                site_web: websiteCheck.website || company.site_web || '',
+                websiteAnalysis,
+                email: email || company.email,
+                emailFound,
+                emailSource,
+              };
+            })
+          );
+
+          setResults(updatedResults);
+        } catch (scanError) {
+          console.error('Error during website scan:', scanError);
+          setResults(newResults);
+        } finally {
+          setIsScanning(false);
+          setScanProgress(100);
+        }
+      }
+
+      if (newResults.length === 0) {
+        setError(`Aucune entreprise trouvée dans le département ${department?.name || departmentCode} pour le secteur ${getAPELabel(quickSearchSector)}`);
+      }
+    } catch (err) {
+      setError('Une erreur est survenue lors de la recherche rapide');
+      setIsLoading(false);
+      setIsScanning(false);
+    } finally {
+      setIsQuickSearching(false);
+    }
+  };
+
   const loadNextPage = async () => {
     if (hasMorePages && !isLoadingPage) {
       await loadPage(currentPage + 1, false);
@@ -458,6 +644,7 @@ export default function ProspectFinder() {
   const resetFilters = () => {
     setSelectedAPECategories([]);
     setSortBy('name');
+    setFilterEmailSent('all');
   };
 
   // Calcul des catégories disponibles dans les résultats
@@ -518,6 +705,13 @@ export default function ProspectFinder() {
   // Calcul des résultats filtrés et triés
   const filteredAndSortedResults = useMemo(() => {
     let filtered = [...results];
+
+    // Filtrer par statut d'email envoyé
+    if (filterEmailSent === 'sent') {
+      filtered = filtered.filter(company => emailsSent.has(company.id));
+    } else if (filterEmailSent === 'notSent') {
+      filtered = filtered.filter(company => !emailsSent.has(company.id));
+    }
 
     // Filtrer par catégories APE si des catégories sont sélectionnées
     if (selectedAPECategories.length > 0) {
@@ -595,10 +789,10 @@ export default function ProspectFinder() {
     });
 
     return sorted;
-  }, [results, selectedAPECategories, sortBy, availableCategories]);
+  }, [results, selectedAPECategories, sortBy, availableCategories, filterEmailSent, emailsSent]);
 
   const exportToCSV = () => {
-    const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Email Source', 'Site Web', 'Qualité Site', 'Score Site', 'Code APE', 'Catégorie'];
+    const headers = ['Nom', 'Adresse', 'Code Postal', 'Ville', 'Téléphone', 'Email', 'Email Source', 'Site Web', 'Qualité Site', 'Score Site', 'Code APE', 'Catégorie', 'Email Envoyé'];
     const csvContent = [
       headers.join(','),
       ...filteredAndSortedResults.map(company =>
@@ -614,7 +808,8 @@ export default function ProspectFinder() {
           `"${company.websiteAnalysis?.quality || (company.hasWebsite ? 'Non analysé' : 'Aucun')}"`,
           company.websiteAnalysis?.score?.toString() || '',
           company.apeCode,
-          `"${getAPELabel(company.apeCode)}"`
+          `"${getAPELabel(company.apeCode)}"`,
+          emailsSent.has(company.id) ? 'Oui' : 'Non'
         ].join(',')
       )
     ].join('\n');
@@ -693,21 +888,160 @@ export default function ProspectFinder() {
           </p>
         </motion.div>
 
+        {/* Onglets de recherche */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2 }}
         >
-          <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm shadow-2xl">
-            <CardHeader>
-              <CardTitle className="text-2xl text-slate-100 flex items-center gap-2">
-                <Search className="h-6 w-6 text-cyan-400" />
-                Recherche d'entreprises
-              </CardTitle>
-              <CardDescription className="text-slate-400">
-                Recherchez des entreprises par ville et code APE ou nom
-              </CardDescription>
-            </CardHeader>
+          <div className="flex gap-2 mb-4">
+            <Button
+              onClick={() => setShowQuickSearch(false)}
+              variant={!showQuickSearch ? "default" : "outline"}
+              className={!showQuickSearch 
+                ? "bg-cyan-500 hover:bg-cyan-600 text-white" 
+                : "border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10"
+              }
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Recherche manuelle
+            </Button>
+            <Button
+              onClick={() => setShowQuickSearch(true)}
+              variant={showQuickSearch ? "default" : "outline"}
+              className={showQuickSearch 
+                ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
+                : "border-emerald-400/30 text-emerald-400 hover:bg-emerald-400/10"
+              }
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Recherche automatique
+            </Button>
+          </div>
+        </motion.div>
+
+        {/* Formulaire de recherche rapide */}
+        {showQuickSearch && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm shadow-2xl border-emerald-500/30">
+              <CardHeader>
+                <CardTitle className="text-2xl text-slate-100 flex items-center gap-2">
+                  <Sparkles className="h-6 w-6 text-emerald-400" />
+                  Recherche automatique de prospects
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  Trouvez automatiquement 5 à 10 entreprises ciblées par département et secteur
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-emerald-400" />
+                      Département
+                    </label>
+                    <Select value={quickSearchDepartment} onValueChange={setQuickSearchDepartment}>
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                        <SelectValue placeholder="Sélectionner un département" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {DEPARTMENTS.map((dept) => (
+                          <SelectItem key={dept.code} value={dept.code}>
+                            {dept.code} - {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-emerald-400" />
+                      Secteur d'activité
+                    </label>
+                    <Select value={quickSearchSector} onValueChange={setQuickSearchSector}>
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                        <SelectValue placeholder="Sélectionner un secteur" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        {APE_CATEGORIES.map((category) => (
+                          <SelectItem key={category.code} value={category.code}>
+                            {category.label} ({category.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-emerald-400" />
+                      Nombre de résultats
+                    </label>
+                    <Select 
+                      value={quickSearchLimit.toString()} 
+                      onValueChange={(value) => setQuickSearchLimit(parseInt(value))}
+                    >
+                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5 entreprises</SelectItem>
+                        <SelectItem value="10">10 entreprises</SelectItem>
+                        <SelectItem value="15">15 entreprises</SelectItem>
+                        <SelectItem value="20">20 entreprises</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
+                      <Button
+                        onClick={handleQuickSearch}
+                        disabled={isQuickSearching || isLoading || isScanning || !quickSearchDepartment || !quickSearchSector}
+                        className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all duration-300"
+                      >
+                        {isQuickSearching || isLoading || isScanning ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {isScanning ? 'Analyse en cours...' : 'Recherche...'}
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="mr-2 h-4 w-4" />
+                            Lancer la recherche
+                          </>
+                        )}
+                      </Button>
+                    </motion.div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Formulaire de recherche manuelle */}
+        {!showQuickSearch && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+          >
+            <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm shadow-2xl">
+              <CardHeader>
+                <CardTitle className="text-2xl text-slate-100 flex items-center gap-2">
+                  <Search className="h-6 w-6 text-cyan-400" />
+                  Recherche d'entreprises
+                </CardTitle>
+                <CardDescription className="text-slate-400">
+                  Recherchez des entreprises par ville et code APE ou nom
+                </CardDescription>
+              </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 <div className="space-y-2 relative">
@@ -927,7 +1261,7 @@ export default function ProspectFinder() {
                         Filtres et tri
                       </h3>
                       <div className="flex gap-2">
-                        {(selectedAPECategories.length > 0 || sortBy !== 'name') && (
+                        {(selectedAPECategories.length > 0 || sortBy !== 'name' || filterEmailSent !== 'all') && (
                           <Button
                             onClick={resetFilters}
                             variant="ghost"
@@ -961,6 +1295,24 @@ export default function ProspectFinder() {
                             <SelectItem value="name">Nom (A-Z)</SelectItem>
                             <SelectItem value="ape">Code APE</SelectItem>
                             <SelectItem value="website">Sans site web d'abord</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Filtre par email envoyé */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                          <Send className="h-4 w-4 text-emerald-400" />
+                          Filtrer par email envoyé
+                        </label>
+                        <Select value={filterEmailSent} onValueChange={(value: 'all' | 'sent' | 'notSent') => setFilterEmailSent(value)}>
+                          <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tous</SelectItem>
+                            <SelectItem value="sent">Emails envoyés uniquement</SelectItem>
+                            <SelectItem value="notSent">Emails non envoyés uniquement</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1043,7 +1395,7 @@ export default function ProspectFinder() {
                 ) : (
                   <>
                     {/* Statistiques */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                       <Card className="border-slate-800 bg-slate-800/30">
                         <CardContent className="pt-4 sm:pt-6">
                           <div className="text-center space-y-2">
@@ -1066,6 +1418,24 @@ export default function ProspectFinder() {
                           <div className="text-center space-y-2">
                             <p className="text-slate-400 text-xs sm:text-sm">Avec site web</p>
                             <p className="text-2xl sm:text-3xl font-bold text-emerald-400">{companiesWithWebsite}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-slate-800 bg-slate-800/30">
+                        <CardContent className="pt-4 sm:pt-6">
+                          <div className="text-center space-y-2">
+                            <p className="text-slate-400 text-xs sm:text-sm flex items-center justify-center gap-1">
+                              <SendCheck className="h-3 w-3" />
+                              Emails envoyés
+                            </p>
+                            <p className="text-2xl sm:text-3xl font-bold text-purple-400">
+                              {results.filter(c => emailsSent.has(c.id)).length}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {totalCompanies > 0 
+                                ? Math.round((results.filter(c => emailsSent.has(c.id)).length / totalCompanies) * 100) 
+                                : 0}%
+                            </p>
                           </div>
                         </CardContent>
                       </Card>
@@ -1117,6 +1487,7 @@ export default function ProspectFinder() {
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Site web</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden md:table-cell">Qualité</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm hidden lg:table-cell">Email</TableHead>
+                                <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm text-center">Email envoyé</TableHead>
                                 <TableHead className="text-cyan-400 font-semibold text-xs sm:text-sm">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -1226,6 +1597,27 @@ export default function ProspectFinder() {
                                           <span className="text-slate-500 text-xs">Non trouvé</span>
                                         )}
                                       </TableCell>
+                                      <TableCell className="text-xs sm:text-sm text-center">
+                                        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => toggleEmailSent(company.id)}
+                                            className={`p-2 ${
+                                              emailsSent.has(company.id)
+                                                ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/20'
+                                                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-700/50'
+                                            }`}
+                                            title={emailsSent.has(company.id) ? "Email envoyé - Cliquer pour retirer" : "Marquer comme email envoyé"}
+                                          >
+                                            {emailsSent.has(company.id) ? (
+                                              <SendCheck className="h-4 w-4 sm:h-5 sm:w-5" />
+                                            ) : (
+                                              <Send className="h-4 w-4 sm:h-5 sm:w-5" />
+                                            )}
+                                          </Button>
+                                        </motion.div>
+                                      </TableCell>
                                       <TableCell className="text-xs sm:text-sm">
                                         <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                                           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -1282,7 +1674,7 @@ export default function ProspectFinder() {
                                         exit={{ opacity: 0, height: 0 }}
                                         className="bg-slate-800/20"
                                       >
-                                        <TableCell colSpan={7} className="text-slate-300 text-xs sm:text-sm py-3 px-4">
+                                        <TableCell colSpan={8} className="text-slate-300 text-xs sm:text-sm py-3 px-4">
                                           <div className="flex items-start gap-2">
                                             <MapPin className="h-4 w-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                                             <div className="flex-1">
@@ -1476,25 +1868,57 @@ export default function ProspectFinder() {
                         <Sparkles className="h-4 w-4" />
                         Email de prospection
                       </label>
-                      <Button
-                        onClick={() => generateProspectEmail(selectedCompany)}
-                        disabled={isGeneratingEmail}
-                        variant="outline"
-                        className="border-purple-400/30 text-purple-400 hover:bg-purple-400/10"
-                        size="sm"
-                      >
-                        {isGeneratingEmail ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Génération...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Générer un email
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            generateProspectEmail(selectedCompany);
+                            // Marquer automatiquement comme email envoyé après génération
+                            setTimeout(() => {
+                              if (!emailsSent.has(selectedCompany.id)) {
+                                toggleEmailSent(selectedCompany.id);
+                              }
+                            }, 1000);
+                          }}
+                          disabled={isGeneratingEmail}
+                          variant="outline"
+                          className="border-purple-400/30 text-purple-400 hover:bg-purple-400/10"
+                          size="sm"
+                        >
+                          {isGeneratingEmail ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Génération...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-2 h-4 w-4" />
+                              Générer un email
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          onClick={() => toggleEmailSent(selectedCompany.id)}
+                          variant={emailsSent.has(selectedCompany.id) ? "default" : "outline"}
+                          className={emailsSent.has(selectedCompany.id) 
+                            ? "bg-emerald-500 hover:bg-emerald-600 text-white" 
+                            : "border-emerald-400/30 text-emerald-400 hover:bg-emerald-400/10"
+                          }
+                          size="sm"
+                          title={emailsSent.has(selectedCompany.id) ? "Email envoyé - Cliquer pour retirer" : "Marquer comme email envoyé"}
+                        >
+                          {emailsSent.has(selectedCompany.id) ? (
+                            <>
+                              <SendCheck className="mr-2 h-4 w-4" />
+                              Email envoyé
+                            </>
+                          ) : (
+                            <>
+                              <Send className="mr-2 h-4 w-4" />
+                              Marquer envoyé
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">

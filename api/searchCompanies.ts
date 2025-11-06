@@ -4,6 +4,7 @@ interface RequestBody {
   city: string;
   apeCodeOrName?: string;
   page?: number;
+  limit?: number;
 }
 
 interface Company {
@@ -43,7 +44,7 @@ export default async function handler(
   }
 
   try {
-    const { city, apeCodeOrName, page = 1 } = req.body as RequestBody;
+    const { city, apeCodeOrName, page = 1, limit } = req.body as RequestBody;
 
     if (!city) {
       return res.status(400).json({ 
@@ -57,11 +58,11 @@ export default async function handler(
     
     if (!sireneApiKey) {
       // Fallback: utiliser l'API Sirene publique (gratuite mais limitée)
-      return await searchWithPublicSireneAPI(city, apeCodeOrName, page, res);
+      return await searchWithPublicSireneAPI(city, apeCodeOrName, page, limit, res);
     }
 
     // Utiliser l'API Sirene avec clé (si disponible)
-    return await searchWithSireneAPI(city, apeCodeOrName, page, sireneApiKey, res);
+    return await searchWithSireneAPI(city, apeCodeOrName, page, limit, sireneApiKey, res);
 
   } catch (error) {
     console.error('Error searching companies:', error);
@@ -80,6 +81,7 @@ async function searchWithPublicSireneAPI(
   city: string,
   apeCodeOrName: string | undefined,
   page: number,
+  limit: number | undefined,
   res: VercelResponse<ResponseData>
 ) {
   try {
@@ -136,7 +138,7 @@ async function searchWithPublicSireneAPI(
     }
 
     // Transformer les résultats en format Company
-    const companies: Company[] = filteredResults.map((result: any, index: number) => {
+    let companies: Company[] = filteredResults.map((result: any, index: number) => {
       const siege = result.siege || {};
       const activite = result.activite_principale || result.activitePrincipale || '';
       
@@ -164,8 +166,13 @@ async function searchWithPublicSireneAPI(
       };
     });
 
-    // Vérifier s'il y a une page suivante (si on a 25 résultats, il y a probablement une page suivante)
-    const hasMore = filteredResults.length === 25;
+    // Limiter le nombre de résultats si un limit est spécifié
+    if (limit && limit > 0) {
+      companies = companies.slice(0, limit);
+    }
+
+    // Vérifier s'il y a une page suivante (si on a 25 résultats et pas de limit, il y a probablement une page suivante)
+    const hasMore = !limit && filteredResults.length === 25;
 
     console.log(`Found ${companies.length} companies on page ${page}, hasMore: ${hasMore}`);
     return res.status(200).json({ 
@@ -191,6 +198,7 @@ async function searchWithSireneAPI(
   city: string,
   apeCodeOrName: string | undefined,
   page: number,
+  limit: number | undefined,
   apiKey: string,
   res: VercelResponse<ResponseData>
 ) {
@@ -222,7 +230,7 @@ async function searchWithSireneAPI(
 
     const data = await response.json();
 
-    const companies: Company[] = (data.results || []).map((etab: any, index: number) => ({
+    let companies: Company[] = (data.results || []).map((etab: any, index: number) => ({
       id: etab.siret || `etab-${index}`,
       name: etab.nom || etab.denomination || 'Entreprise',
       address: etab.siege?.adresse || '',
@@ -235,8 +243,13 @@ async function searchWithSireneAPI(
       longitude: etab.longitude ? parseFloat(String(etab.longitude)) : undefined,
     }));
 
+    // Limiter le nombre de résultats si un limit est spécifié
+    if (limit && limit > 0) {
+      companies = companies.slice(0, limit);
+    }
+
     // Vérifier s'il y a une page suivante
-    const hasMore = companies.length === 25;
+    const hasMore = !limit && companies.length === 25;
 
     return res.status(200).json({ 
       companies,
