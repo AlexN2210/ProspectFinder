@@ -1210,83 +1210,85 @@ export default function ProspectFinder() {
                   Trouvez automatiquement 5 à 10 entreprises ciblées par département et secteur
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
-                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
-                      Département
-                    </label>
-                    <Select value={quickSearchDepartment} onValueChange={setQuickSearchDepartment}>
-                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
-                        <SelectValue placeholder="Sélectionner un département" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {DEPARTMENTS.map((dept) => (
-                          <SelectItem key={dept.code} value={dept.code}>
-                            {dept.code} - {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+              <CardContent className="p-4 sm:p-6">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
+                        Département
+                      </label>
+                      <Select value={quickSearchDepartment} onValueChange={setQuickSearchDepartment}>
+                        <SelectTrigger className="w-full bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
+                          <SelectValue placeholder="Sélectionner un département" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {DEPARTMENTS.map((dept) => (
+                            <SelectItem key={dept.code} value={dept.code}>
+                              {dept.code} - {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                        <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
+                        Secteur d'activité
+                      </label>
+                      <Select value={quickSearchSector} onValueChange={setQuickSearchSector}>
+                        <SelectTrigger className="w-full bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
+                          <SelectValue placeholder="Sélectionner un secteur" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {APE_CATEGORIES.map((category) => (
+                            <SelectItem key={category.code} value={category.code}>
+                              {category.label} ({category.code})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2 sm:col-span-2 lg:col-span-1">
+                      <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                        <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
+                        Nombre de résultats
+                      </label>
+                      <Select 
+                        value={quickSearchLimit.toString()} 
+                        onValueChange={(value) => setQuickSearchLimit(parseInt(value))}
+                      >
+                        <SelectTrigger className="w-full bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">5 entreprises</SelectItem>
+                          <SelectItem value="10">10 entreprises</SelectItem>
+                          <SelectItem value="15">15 entreprises</SelectItem>
+                          <SelectItem value="20">20 entreprises</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
-                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
-                      Secteur d'activité
-                    </label>
-                    <Select value={quickSearchSector} onValueChange={setQuickSearchSector}>
-                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
-                        <SelectValue placeholder="Sélectionner un secteur" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        {APE_CATEGORIES.map((category) => (
-                          <SelectItem key={category.code} value={category.code}>
-                            {category.label} ({category.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
-                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
-                      Nombre de résultats
-                    </label>
-                    <Select 
-                      value={quickSearchLimit.toString()} 
-                      onValueChange={(value) => setQuickSearchLimit(parseInt(value))}
-                    >
-                      <SelectTrigger className="bg-slate-800/50 border-slate-700 text-slate-100 text-sm sm:text-base h-10 sm:h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5 entreprises</SelectItem>
-                        <SelectItem value="10">10 entreprises</SelectItem>
-                        <SelectItem value="15">15 entreprises</SelectItem>
-                        <SelectItem value="20">20 entreprises</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-end sm:col-span-2 lg:col-span-1 w-full">
+                  <div className="w-full">
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
                       <Button
                         onClick={handleQuickSearch}
                         disabled={isQuickSearching || isLoading || isScanning || !quickSearchDepartment || !quickSearchSector}
-                        className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all duration-300 text-sm sm:text-base py-2 sm:py-2.5 h-auto min-h-[44px]"
+                        className="w-full bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 text-white font-semibold shadow-lg shadow-emerald-500/20 transition-all duration-300 text-sm sm:text-base py-3 sm:py-2.5 h-auto min-h-[48px] sm:min-h-[44px]"
                       >
                         {isQuickSearching || isLoading || isScanning ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                            <span className="text-xs sm:text-sm">{isScanning ? 'Analyse en cours...' : 'Recherche...'}</span>
+                            <span className="text-sm">{isScanning ? 'Analyse en cours...' : 'Recherche...'}</span>
                           </>
                         ) : (
                           <>
                             <Sparkles className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                            <span className="text-xs sm:text-sm">Lancer la recherche</span>
+                            <span className="text-sm">Lancer la recherche</span>
                           </>
                         )}
                       </Button>
@@ -1315,104 +1317,106 @@ export default function ProspectFinder() {
                   Recherchez des entreprises par ville et code APE ou nom
                 </CardDescription>
               </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                <div className="space-y-2 relative">
-                  <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
-                    Ville
-                  </label>
-                  <div className="relative">
-                    <Input
-                      ref={cityInputRef}
-                      placeholder="ex: Paris, Lyon, Reims..."
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      onFocus={() => citySuggestions.length > 0 && setShowSuggestions(true)}
-                      className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all text-sm sm:text-base"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (showSuggestions && citySuggestions.length > 0) {
-                            selectCity(citySuggestions[0]);
-                          } else {
-                            handleSearch();
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-2 relative sm:col-span-1">
+                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-cyan-400" />
+                      Ville
+                    </label>
+                    <div className="relative">
+                      <Input
+                        ref={cityInputRef}
+                        placeholder="ex: Paris, Lyon, Reims..."
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        onFocus={() => citySuggestions.length > 0 && setShowSuggestions(true)}
+                        className="w-full bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:ring-cyan-400/20 transition-all text-sm sm:text-base h-10 sm:h-11"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (showSuggestions && citySuggestions.length > 0) {
+                              selectCity(citySuggestions[0]);
+                            } else {
+                              handleSearch();
+                            }
+                          } else if (e.key === 'Escape') {
+                            setShowSuggestions(false);
                           }
-                        } else if (e.key === 'Escape') {
-                          setShowSuggestions(false);
-                        }
-                      }}
-                    />
-                    {isLoadingSuggestions && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-cyan-400" />
-                    )}
-                    
-                    {/* Suggestions d'autocomplétion */}
-                    {showSuggestions && citySuggestions.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        ref={suggestionsRef}
-                        className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto"
-                      >
-                        {citySuggestions.map((suggestion) => (
-                          <button
-                            key={suggestion.place_id}
-                            type="button"
-                            onClick={() => selectCity(suggestion)}
-                            className="w-full text-left px-4 py-3 hover:bg-slate-700/50 transition-colors border-b border-slate-700/50 last:border-b-0"
-                            onMouseDown={(e) => e.preventDefault()}
-                          >
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-cyan-400 flex-shrink-0" />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-slate-100 text-sm font-medium truncate">
-                                  {suggestion.structured_formatting?.main_text || suggestion.description.split(',')[0]}
-                                </p>
-                                {suggestion.structured_formatting?.secondary_text && (
-                                  <p className="text-slate-400 text-xs truncate">
-                                    {suggestion.structured_formatting.secondary_text}
+                        }}
+                      />
+                      {isLoadingSuggestions && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-cyan-400" />
+                      )}
+                      
+                      {/* Suggestions d'autocomplétion */}
+                      {showSuggestions && citySuggestions.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          ref={suggestionsRef}
+                          className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+                        >
+                          {citySuggestions.map((suggestion) => (
+                            <button
+                              key={suggestion.place_id}
+                              type="button"
+                              onClick={() => selectCity(suggestion)}
+                              className="w-full text-left px-4 py-3 hover:bg-slate-700/50 transition-colors border-b border-slate-700/50 last:border-b-0"
+                              onMouseDown={(e) => e.preventDefault()}
+                            >
+                              <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-cyan-400 flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-slate-100 text-sm font-medium truncate">
+                                    {suggestion.structured_formatting?.main_text || suggestion.description.split(',')[0]}
                                   </p>
-                                )}
+                                  {suggestion.structured_formatting?.secondary_text && (
+                                    <p className="text-slate-400 text-xs truncate">
+                                      {suggestion.structured_formatting.secondary_text}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 sm:col-span-1">
+                    <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
+                      <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
+                      Code APE ou Nom entreprise
+                    </label>
+                    <Input
+                      placeholder="ex: 5610A ou Restaurant..."
+                      value={apeCodeOrName}
+                      onChange={(e) => setApeCodeOrName(e.target.value)}
+                      className="w-full bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all text-sm sm:text-base h-10 sm:h-11"
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs sm:text-sm font-medium text-slate-300 flex items-center gap-2">
-                    <Building2 className="h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" />
-                    Code APE ou Nom entreprise
-                  </label>
-                  <Input
-                    placeholder="ex: 5610A ou Restaurant..."
-                    value={apeCodeOrName}
-                    onChange={(e) => setApeCodeOrName(e.target.value)}
-                    className="bg-slate-800/50 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-emerald-400/20 transition-all text-sm sm:text-base"
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                </div>
-
-                <div className="flex items-end sm:col-span-2 md:col-span-1 w-full">
+                <div className="w-full">
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="w-full">
                     <Button
                       onClick={handleSearch}
                       disabled={isLoading || isScanning}
-                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base py-2 sm:py-2.5 h-auto min-h-[44px]"
+                      className="w-full bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-600 hover:to-emerald-600 text-white font-semibold shadow-lg shadow-cyan-500/20 transition-all duration-300 text-sm sm:text-base py-3 sm:py-2.5 h-auto min-h-[48px] sm:min-h-[44px]"
                     >
                       {isLoading || isScanning ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                          <span className="text-xs sm:text-sm">{isScanning ? 'Scan en cours...' : 'Recherche...'}</span>
+                          <span className="text-sm">{isScanning ? 'Scan en cours...' : 'Recherche...'}</span>
                         </>
                       ) : (
                         <>
                           <Search className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                          <span className="text-xs sm:text-sm">Rechercher</span>
+                          <span className="text-sm">Rechercher</span>
                         </>
                       )}
                     </Button>
