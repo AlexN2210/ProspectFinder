@@ -239,6 +239,7 @@ export default function ProspectFinder() {
   const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null);
   
   // État pour la recherche rapide automatique
   const [quickSearchDepartment, setQuickSearchDepartment] = useState<string>('');
@@ -497,7 +498,7 @@ export default function ProspectFinder() {
           websiteStatus: company.websiteAnalysis?.quality || (company.hasWebsite ? 'good' : 'none'),
           websiteUrl: company.site_web,
           companyCity: company.city,
-          companyActivity: getAPELabel(company.apeCode),
+          companyActivity: getAPELabel(company.apeCode), // Utilisé pour personnaliser mais pas affiché dans le mail
         }),
       });
 
@@ -523,6 +524,17 @@ export default function ProspectFinder() {
       navigator.clipboard.writeText(fullEmail);
       setEmailCopied(true);
       setTimeout(() => setEmailCopied(false), 2000);
+    }
+  };
+
+  // Fonction pour copier un email d'entreprise dans le presse-papiers
+  const copyCompanyEmail = async (email: string, companyId: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedEmailId(companyId);
+      setTimeout(() => setCopiedEmailId(null), 2000);
+    } catch (error) {
+      console.error('Erreur lors de la copie de l\'email:', error);
     }
   };
 
@@ -1854,6 +1866,19 @@ export default function ProspectFinder() {
                                                 ?
                                               </span>
                                             )}
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0 hover:bg-slate-700"
+                                              onClick={() => copyCompanyEmail(company.email!, company.id)}
+                                              title="Copier l'email"
+                                            >
+                                              {copiedEmailId === company.id ? (
+                                                <CheckCircle className="h-3 w-3 text-emerald-400" />
+                                              ) : (
+                                                <Copy className="h-3 w-3 text-slate-400" />
+                                              )}
+                                            </Button>
                                           </div>
                                         ) : (
                                           <span className="text-slate-500 text-xs">Non trouvé</span>
@@ -2038,11 +2063,28 @@ export default function ProspectFinder() {
                       <Mail className="h-4 w-4" />
                       Email
                     </label>
-                    <p className="text-slate-300">
-                      {selectedCompany.email || (
-                        <span className="text-slate-500 italic">Non renseigné</span>
+                    <div className="flex items-center gap-2">
+                      <p className="text-slate-300">
+                        {selectedCompany.email || (
+                          <span className="text-slate-500 italic">Non renseigné</span>
+                        )}
+                      </p>
+                      {selectedCompany.email && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 hover:bg-slate-700"
+                          onClick={() => copyCompanyEmail(selectedCompany.email!, selectedCompany.id)}
+                          title="Copier l'email"
+                        >
+                          {copiedEmailId === selectedCompany.id ? (
+                            <CheckCircle className="h-4 w-4 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-4 w-4 text-slate-400" />
+                          )}
+                        </Button>
                       )}
-                    </p>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-cyan-400 flex items-center gap-2">

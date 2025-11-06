@@ -75,17 +75,24 @@ function generateEmail(
   let subject = '';
   let body = '';
 
+  // Signature personnalisée
+  const signature = `Alexis
+
+Développeur Web Freelance
+
+📞 0652173816 • 🌐 www.alexisdevfullstack.com`;
+
   // Adapter le message selon l'état du site web
   if (websiteStatus === 'none') {
     subject = `Votre présence en ligne : une opportunité pour ${companyName}`;
     body = `${greeting}
 
-Je me permets de vous contacter concernant votre présence digitale. En tant que freelance spécialisé dans la conception et la refonte de sites web, j'ai remarqué que ${companyName}${companyCity ? ` à ${companyCity}` : ''} n'a pas encore de site web.
+Je me permets de vous contacter concernant votre présence digitale. En tant que développeur web freelance spécialisé dans la conception et la refonte de sites web, j'ai remarqué que ${companyName}${companyCity ? ` à ${companyCity}` : ''} n'a pas encore de site web.
 
 Dans un monde où 80% des clients recherchent une entreprise en ligne avant de prendre contact, l'absence de site web peut représenter une perte d'opportunités significative.
 
-Je serais ravi de discuter avec vous de la création d'un site web professionnel adapté à votre activité${companyActivity ? ` (${companyActivity})` : ''}, qui vous permettrait de :
-• Augmenter votre visibilité locale
+Je serais ravi de discuter avec vous de la création d'un site web professionnel adapté à votre activité${companyActivity ? ` de ${companyActivity.toLowerCase()}` : ''}, qui vous permettrait de :
+• Augmenter votre visibilité locale${companyCity ? ` à ${companyCity}` : ''}
 • Attirer de nouveaux clients
 • Présenter vos services de manière professionnelle
 • Gagner en crédibilité
@@ -93,16 +100,16 @@ Je serais ravi de discuter avec vous de la création d'un site web professionnel
 Seriez-vous disponible pour un échange de 15 minutes afin de discuter de vos besoins et de voir comment je peux vous accompagner ?
 
 Cordialement,
-[Votre nom]
-Freelance en conception web`;
+
+${signature}`;
 
   } else if (websiteStatus === 'poor') {
     subject = `Moderniser le site web de ${companyName} : une opportunité de croissance`;
     body = `${greeting}
 
-Je me permets de vous contacter concernant le site web de ${companyName}${websiteUrl ? ` (${websiteUrl})` : ''}.
+Je me permets de vous contacter concernant le site web de ${companyName}${websiteUrl ? ` (${websiteUrl})` : ''}${companyCity ? ` à ${companyCity}` : ''}.
 
-En tant que freelance spécialisé dans la refonte de sites web, j'ai constaté que votre site présente certaines opportunités d'amélioration pour mieux répondre aux attentes de vos clients actuels et futurs.
+En tant que développeur web freelance spécialisé dans la refonte de sites web, j'ai constaté que votre site présente certaines opportunités d'amélioration pour mieux répondre aux attentes de vos clients actuels et futurs.
 
 Une refonte moderne permettrait à ${companyName} de :
 • Améliorer l'expérience utilisateur et la navigation
@@ -116,17 +123,17 @@ Je serais ravi de vous proposer un audit gratuit de votre site actuel et de disc
 Seriez-vous disponible pour un échange de 15 minutes cette semaine ?
 
 Cordialement,
-[Votre nom]
-Freelance en refonte de sites web`;
+
+${signature}`;
 
   } else {
     // Site bon ou excellent - approche différente
     subject = `Optimisation et évolution du site web de ${companyName}`;
     body = `${greeting}
 
-Je me permets de vous contacter concernant le site web de ${companyName}${websiteUrl ? ` (${websiteUrl})` : ''}.
+Je me permets de vous contacter concernant le site web de ${companyName}${websiteUrl ? ` (${websiteUrl})` : ''}${companyCity ? ` à ${companyCity}` : ''}.
 
-En tant que freelance spécialisé dans la conception et l'optimisation de sites web, je remarque que vous avez déjà une présence en ligne. C'est excellent !
+En tant que développeur web freelance spécialisé dans la conception et l'optimisation de sites web, je remarque que vous avez déjà une présence en ligne. C'est excellent !
 
 Je serais ravi de discuter avec vous des opportunités d'optimisation et d'évolution possibles pour votre site, que ce soit pour :
 • Améliorer les performances et la vitesse de chargement
@@ -138,8 +145,8 @@ Je serais ravi de discuter avec vous des opportunités d'optimisation et d'évol
 Seriez-vous disponible pour un échange de 15 minutes afin de discuter de vos objectifs et de voir comment je peux vous accompagner dans l'évolution de votre présence digitale ?
 
 Cordialement,
-[Votre nom]
-Freelance en conception web`;
+
+${signature}`;
 
   }
 
