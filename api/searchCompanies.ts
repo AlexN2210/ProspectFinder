@@ -97,7 +97,10 @@ async function searchWithPublicSireneAPI(
       // Recherche par ville (priorité si ville fournie)
       if (apeCodeOrName) {
         if (/^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
+          // L'API Recherche Entreprises peut avoir des problèmes avec certains codes APE
+          // Essayer d'abord avec le code APE complet, puis sans la lettre si ça ne fonctionne pas
           query = `${city} ${apeCodeOrName.toUpperCase()}`;
+          console.log(`[API] Format de requête: "ville codeAPE" = "${query}"`);
         } else {
           query = `${apeCodeOrName} ${city}`;
         }
@@ -174,6 +177,30 @@ async function searchWithPublicSireneAPI(
     const data = await response.json();
     console.log(`[API] Résultats bruts reçus: ${data.results?.length || 0} entreprises`);
     
+    // Si aucun résultat, essayer une recherche alternative sans code APE (juste la ville)
+    if ((!data.results || data.results.length === 0) && city && apeCodeOrName && /^\d{4}[A-Z]$/.test(apeCodeOrName.toUpperCase())) {
+      console.log(`[API] ⚠️ AUCUN RÉSULTAT avec "${query}"`);
+      console.log(`[API] 💡 Essai d'une recherche alternative sans code APE (juste la ville) pour vérifier...`);
+      
+      // Essayer une recherche sans code APE pour voir si la ville fonctionne
+      const alternativeUrl = `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(city)}&per_page=5&page=1`;
+      try {
+        const altResponse = await fetch(alternativeUrl, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (altResponse.ok) {
+          const altData = await altResponse.json();
+          console.log(`[API] Recherche alternative (sans code APE): ${altData.results?.length || 0} résultats trouvés`);
+          if (altData.results && altData.results.length > 0) {
+            console.log(`[API] 💡 La ville "${city}" fonctionne, mais le code APE "${apeCodeOrName}" ne retourne rien`);
+            console.log(`[API] 💡 Cela suggère que l'API Recherche Entreprises ne trouve pas d'entreprises avec ce code APE dans cette ville`);
+          }
+        }
+      } catch (altError) {
+        console.error(`[API] Erreur lors de la recherche alternative:`, altError);
+      }
+    }
+    
     // Si aucun résultat, logger plus d'infos
     if (!data.results || data.results.length === 0) {
       console.log(`[API] ⚠️ AUCUN RÉSULTAT de l'API Recherche Entreprises`);
@@ -203,7 +230,9 @@ async function searchWithPublicSireneAPI(
     console.log(`[API] Avant filtrage: ${filteredResults.length} résultats`);
     
     // Filtrer par département si un code département a été spécifié
-    if (departmentCode && filteredResults.length > 0) {
+    // MAIS: Si on a une ville, on ne filtre PAS par département car la ville est déjà dans le département
+    // Le filtrage par département n'est utile que si on cherche sans ville (code APE seul)
+    if (departmentCode && filteredResults.length > 0 && !city) {
       const normalizedDeptCode = departmentCode.padStart(2, '0');
       const beforeFilter = filteredResults.length;
       
@@ -248,15 +277,32 @@ async function searchWithPublicSireneAPI(
     }
     
     // Filtrer aussi par ville si une ville a été spécifiée
+    // Si on a une ville ET un département, on filtre seulement par ville (pas besoin de filtrer par département)
     if (city && city.trim() && filteredResults.length > 0) {
       const beforeCityFilter = filteredResults.length;
       filteredResults = filteredResults.filter((result: any) => {
         const siege = result.siege || {};
         const ville = (siege.ville || '').toLowerCase();
         const cityLower = city.toLowerCase();
-        return ville.includes(cityLower) || cityLower.includes(ville);
+        const matches = ville.includes(cityLower) || cityLower.includes(ville);
+        
+        if (!matches && departmentCode) {
+          // Si ça ne correspond pas à la ville mais qu'on a un département, vérifier le code postal
+          const postalCode = (siege.code_postal || siege.codePostal || '').trim();
+          if (postalCode) {
+            const normalizedDeptCode = departmentCode.padStart(2, '0');
+            const postalCodeStart = postalCode.substring(0, 2);
+            // Si le code postal correspond au département, on garde quand même
+            if (postalCodeStart === normalizedDeptCode) {
+              console.log(`[API] Résultat gardé: ville "${ville}" ne correspond pas à "${city}" mais code postal ${postalCode} correspond au département ${normalizedDeptCode}`);
+              return true;
+            }
+          }
+        }
+        
+        return matches;
       });
-      console.log(`Filtered by city ${city}, results count: ${filteredResults.length} (from ${beforeCityFilter} total)`);
+      console.log(`[API] Filtrage par ville "${city}": ${filteredResults.length} résultats (sur ${beforeCityFilter} total)`);
     }
     
     if (!departmentCode && !city) {
