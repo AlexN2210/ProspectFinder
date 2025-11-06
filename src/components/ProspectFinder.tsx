@@ -1748,8 +1748,108 @@ export default function ProspectFinder() {
                       </Card>
                     )}
 
-                    {/* Tableau */}
-                    <div className="rounded-lg border border-slate-800 overflow-hidden w-full">
+                    {/* Vue mobile en cartes */}
+                    <div className="block md:hidden space-y-3">
+                      {filteredAndSortedResults.map((company, index) => (
+                        <motion.div
+                          key={company.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="bg-slate-900/50 border border-slate-800 rounded-lg p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Building2 className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                                <h3 className="font-semibold text-slate-100 text-sm truncate">{company.name}</h3>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-slate-400">
+                                <MapPin className="h-3 w-3" />
+                                <span className="truncate">{company.city}</span>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleEmailSent(company.id)}
+                              className={`p-1 ${
+                                emailsSent.has(company.id)
+                                  ? 'text-emerald-400'
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {emailsSent.has(company.id) ? (
+                                <CheckCircle className="h-5 w-5" />
+                              ) : (
+                                <Send className="h-5 w-5" />
+                              )}
+                            </Button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-slate-500">Code APE:</span>
+                              <Badge variant="outline" className="border-slate-700 text-slate-400 text-xs ml-1">
+                                {company.apeCode}
+                              </Badge>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">Site web:</span>
+                              {company.hasWebsite && company.site_web ? (
+                                <span className="text-emerald-400 ml-1">✅</span>
+                              ) : (
+                                <span className="text-rose-400 ml-1">❌</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {company.email && (
+                            <div className="flex items-center gap-2 text-xs">
+                              <Mail className="h-3 w-3 text-emerald-400" />
+                              <span className="text-emerald-400 truncate flex-1">{company.email}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={() => copyCompanyEmail(company.email!, company.id)}
+                              >
+                                {copiedEmailId === company.id ? (
+                                  <CheckCircle className="h-3 w-3 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-3 w-3 text-slate-400" />
+                                )}
+                              </Button>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => generateProspectEmail(company)}
+                              disabled={isGeneratingEmail}
+                              className="text-purple-400 hover:text-purple-300 text-xs flex-1"
+                            >
+                              <Sparkles className="h-4 w-4 mr-1" />
+                              Email
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openCompanyDetails(company)}
+                              className="text-cyan-400 hover:text-cyan-300 text-xs flex-1"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Détails
+                            </Button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Tableau desktop */}
+                    <div className="hidden md:block rounded-lg border border-slate-800 overflow-hidden w-full">
                       <div className="overflow-x-auto -mx-4 sm:mx-0">
                         <div className="inline-block min-w-full align-middle">
                           <Table>
